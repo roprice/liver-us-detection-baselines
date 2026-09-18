@@ -3,7 +3,7 @@ set -e
 
 # Preliminary experiment: train the 625-image set to 1000 epochs across
 # 3 seeds (42, 43, 44), saving milestone checkpoints at 50/100/150/300/500/750,
-# plus best_mass, best_joint, and final (epoch 1000).
+# plus best_mass, best, and final (epoch 1000).
 # Then predict from all 9 checkpoints for each seed.
 #
 # Instrumentation:
@@ -15,11 +15,11 @@ set -e
 #   - PyTorch peak GPU memory logged by the custom trainer at milestones
 #
 # Prerequisites:
-#   - Dataset001_LiverUS in nnUNet_raw
-#   - nnUNetTrainer1000Milestones.py in custom_trainers/
+#   - Dataset001_AUL in nnUNet_raw
+#   - nnUNetTrainerMilestones.py in custom_trainers/
 #
 # Usage:
-#   script -c "bash training/run_preliminary_1000_epochs.sh" logs/training/preliminary_experiment.log
+#   script -c "bash training/run_preliminary_milestones_test.sh" logs/training/preliminary_experiment.log
 
 START_TIME=$(date +%s)
 
@@ -32,30 +32,30 @@ export nnUNet_extTrainer="${SCRIPT_DIR}/custom_trainers"
 : "${nnUNet_results:?Set nnUNet_results before running}"
 
 DATASET_ID=1
-DATASET_NAME="Dataset001_LiverUS"
+DATASET_NAME="Dataset001_AUL"
 SEEDS=(42 43 44)
 
 # Ordered list of checkpoints for deterministic iteration
 CHECKPOINT_ORDER=(
-    checkpoint_ep50.pth
-    checkpoint_ep100.pth
-    checkpoint_ep150.pth
-    checkpoint_ep300.pth
-    checkpoint_ep500.pth
-    checkpoint_ep750.pth
-    checkpoint_best_joint.pth
+    checkpoint_epoch50.pth
+    checkpoint_epoch100.pth
+    checkpoint_epoch150.pth
+    checkpoint_epoch300.pth
+    checkpoint_epoch500.pth
+    checkpoint_epoch750.pth
+    checkpoint_best.pth
     checkpoint_best_mass.pth
     checkpoint_final.pth
 )
 declare -A CHECKPOINT_LABELS
-CHECKPOINT_LABELS[checkpoint_ep50.pth]=ep50
-CHECKPOINT_LABELS[checkpoint_ep100.pth]=ep100
-CHECKPOINT_LABELS[checkpoint_ep150.pth]=ep150
-CHECKPOINT_LABELS[checkpoint_ep300.pth]=ep300
-CHECKPOINT_LABELS[checkpoint_ep500.pth]=ep500
-CHECKPOINT_LABELS[checkpoint_ep750.pth]=ep750
-CHECKPOINT_LABELS[checkpoint_best_joint.pth]=joint
-CHECKPOINT_LABELS[checkpoint_best_mass.pth]=mass
+CHECKPOINT_LABELS[checkpoint_epoch50.pth]=epoch50
+CHECKPOINT_LABELS[checkpoint_epoch100.pth]=epoch100
+CHECKPOINT_LABELS[checkpoint_epoch150.pth]=epoch150
+CHECKPOINT_LABELS[checkpoint_epoch300.pth]=epoch300
+CHECKPOINT_LABELS[checkpoint_epoch500.pth]=epoch500
+CHECKPOINT_LABELS[checkpoint_epoch750.pth]=epoch750
+CHECKPOINT_LABELS[checkpoint_best.pth]=best
+CHECKPOINT_LABELS[checkpoint_best_mass.pth]=best_mass
 CHECKPOINT_LABELS[checkpoint_final.pth]=final
 
 # --- Log directories ---
@@ -128,7 +128,7 @@ echo "Repo SHA: ${REPO_SHA}"
 
 echo ""
 echo "Training seeds: 42, 43, 44"
-echo "Trainer: nnUNetTrainer1000Milestones"
+echo "Trainer: nnUNetTrainerMilestones"
 echo "Configuration: 2d, fold 0, PlainConvUNet"
 echo "Patch size, batch size, and architecture details are recorded"
 echo "  in nnU-Net's training_log and in the plans JSON below."
@@ -172,7 +172,7 @@ echo ""
 # Training and prediction loop
 # =====================================================================
 for SEED in "${SEEDS[@]}"; do
-    TRAINER="nnUNetTrainer1000Milestones_s${SEED}"
+    TRAINER="nnUNetTrainerMilestones_seed${SEED}"
     CKPT_DIR="${nnUNet_results}/${DATASET_NAME}/${TRAINER}__nnUNetPlans__2d/fold_0"
 
     echo ""
@@ -240,7 +240,7 @@ os.remove(tmp)
             continue
         fi
 
-        PRED_DIR="${nnUNet_results}/predictions_625_s${SEED}_1000ep_${LBL}"
+        PRED_DIR="${nnUNet_results}/predictions_milestones_625images_seed${SEED}_${LBL}"
         echo ""
         echo "--- Predicting: ${LBL} (${CHK}, seed ${SEED}) ---"
         echo "Predict start: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -287,7 +287,7 @@ mkdir -p "$BENCH_DIR"
         --dataset-name "${DATASET_NAME}" \
         --dataset-id "${DATASET_ID}" \
         --seeds "${SEEDS[@]}" \
-        --trainer-prefix nnUNetTrainer1000Milestones_s \
+        --trainer-prefix nnUNetTrainerMilestones_seed \
         --checkpoint checkpoint_final.pth \
         --device cuda \
         --output-dir "$BENCH_DIR"
@@ -328,7 +328,7 @@ echo ""
 echo "  PyTorch peak GPU memory (allocated/reserved) is logged by the custom"
 echo "  trainer at initialization, milestones (50/100/150/300/500/750), and training"
 echo "  completion in nnU-Net's training_log_*.txt files under:"
-echo "    ${nnUNet_results}/${DATASET_NAME}/nnUNetTrainer1000Milestones_s{SEED}__nnUNetPlans__2d/fold_0/"
+echo "    ${nnUNet_results}/${DATASET_NAME}/nnUNetTrainerMilestones_seed{SEED}__nnUNetPlans__2d/fold_0/"
 echo ""
 echo "  GPU inference benchmark (${BENCH_DIR}):"
 echo "    inference_per_image_cuda.csv       per-image inference seconds, one row per case x seed"
@@ -336,4 +336,4 @@ echo "    inference_summary_cuda.csv         per-seed model load time, median/me
 echo "    inference_settings_cuda.json       exact settings to replicate on CPU later"
 echo "    ${LOGS_DIR}/time_gpu_inference_benchmark.txt   /usr/bin/time: peak RSS, CPU time for the benchmark script"
 echo ""
-echo "Predictions: predictions_625_s{42,43,44}_1000ep_{ep50,ep100,ep150,ep300,ep500,ep750,joint,mass,final}/"
+echo "Predictions: predictions_milestones_625images_seed{42,43,44}_{epoch50,epoch100,epoch150,epoch300,epoch500,epoch750,best,best_mass,final}/"
