@@ -17,7 +17,7 @@ Measures:
     afterward as part of the full measured set.
 
 This does not modify or duplicate the per-checkpoint batch prediction
-already performed by nnUNetv2_predict in run_preliminary_1000_epochs.sh.
+already performed by nnUNetv2_predict in run_preliminary_milestones_test.sh.
 That measures end-to-end throughput (including preprocessing and export)
 per checkpoint. This script isolates GPU (or CPU) compute latency for a
 single representative checkpoint per seed, since forward-pass latency
@@ -26,22 +26,22 @@ depends on architecture and input size, not on which weights are loaded.
 Usage (on the rented GPU instance, before it is released):
   python training/benchmark_gpu_inference.py \\
     --nnunet-raw "$nnUNet_raw" \\
-    --dataset-name Dataset001_LiverUS \\
-    --dataset-id 1 \\
-    --seeds 42 43 44 \\
-    --trainer-prefix nnUNetTrainer1000Milestones_s \\
-    --checkpoint checkpoint_final.pth \\
-    --device cuda \\
+    --dataset-name Dataset001_AUL \
+    --dataset-id 1 \
+    --seeds 42 43 44 \
+    --trainer-prefix nnUNetTrainerMilestones_seed \
+    --checkpoint checkpoint_final.pth \
+    --device cpu \
     --output-dir logs/inference
 
 To repeat later on a different machine with the same checkpoints, images,
 and inference settings (only --device and --output-dir change):
   python training/benchmark_gpu_inference.py \\
     --nnunet-raw /path/to/nnUNet_raw \\
-    --dataset-name Dataset001_LiverUS \\
+    --dataset-name Dataset001_AUL \\
     --dataset-id 1 \\
     --seeds 42 43 44 \\
-    --trainer-prefix nnUNetTrainer1000Milestones_s \\
+    --trainer-prefix nnUNetTrainerMilestones_seed \\
     --checkpoint checkpoint_final.pth \\
     --device cpu \\
     --output-dir logs/inference_cpu
@@ -96,10 +96,10 @@ def main():
                     "nnU-Net checkpoints.")
     parser.add_argument("--nnunet-raw", required=True,
                         help="Path to nnUNet_raw (contains the dataset's imagesTs)")
-    parser.add_argument("--dataset-name", default="Dataset001_LiverUS")
+    parser.add_argument("--dataset-name", default="Dataset001_AUL")
     parser.add_argument("--dataset-id", default="1")
     parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
-    parser.add_argument("--trainer-prefix", default="nnUNetTrainer1000Milestones_s",
+    parser.add_argument("--trainer-prefix", default="nnUNetTrainerMilestones_seed",
                         help="Trainer class name prefix; seed is appended")
     parser.add_argument("--plans", default="nnUNetPlans")
     parser.add_argument("--configuration", default="2d")
