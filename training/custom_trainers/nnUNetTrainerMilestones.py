@@ -1,15 +1,12 @@
 """
-1000-epoch trainer with milestone checkpoints and dual best-checkpoint
-selection, for the preliminary epoch-budget experiment.
+Custom trainer with milestone checkpoints and dual best-checkpoint
+selection
 
-Uses a seeded dual-checkpoint approach:
+Using a seeded approach:
   - Runs to nnU-Net's default 1000 epochs
-  - Saves dedicated checkpoints at epochs 50, 100, 150, 300, 500, 750
-    (in addition to the automatic best_mass, best_joint, and final)
-  - Milestone checkpoints are named checkpoint_ep{N}.pth
-
-Checkpoint selection (mass and joint EMA) is identical to
-nnUNetTrainer150Seeded so results stay comparable.
+  - Saves  checkpoints at epochs 50, 100, 150, 300, 500, 750
+  - Saves a `best_mass` checkpoint for EMA-smoothed best mass Dice
+  - Saves the best EMA Dice and the final checkpoint (nnU-Net defaults)
 
 Instrumentation:
   - Logs model parameter count after initialization
@@ -20,9 +17,9 @@ Instrumentation:
     at training completion
 
 Usage (seeds 42, 43, 44):
-  nnUNetv2_train 1 2d 0 --npz -tr nnUNetTrainer1000Milestones_s42
-  nnUNetv2_train 1 2d 0 --npz -tr nnUNetTrainer1000Milestones_s43
-  nnUNetv2_train 1 2d 0 --npz -tr nnUNetTrainer1000Milestones_s44
+  nnUNetv2_train 1 2d 0 --npz -tr nnUNetTrainerMilestones_seed42
+  nnUNetv2_train 1 2d 0 --npz -tr nnUNetTrainerMilestones_seed43
+  nnUNetv2_train 1 2d 0 --npz -tr nnUNetTrainerMilestones_seed44
 """
 
 import random
@@ -34,7 +31,7 @@ import torch
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 
 
-class nnUNetTrainer1000Milestones(nnUNetTrainer):
+class nnUNetTrainerMilestones(nnUNetTrainer):
     training_seed = None
     MASS_CLASS_INDEX = 1
     EMA_ALPHA = 0.9
@@ -85,14 +82,17 @@ class nnUNetTrainer1000Milestones(nnUNetTrainer):
         """Log current and peak GPU memory with a descriptive label."""
         if not torch.cuda.is_available() or self.local_rank != 0:
             return
+        lr = self.optimizer.param_groups[0]['lr']
         self.print_to_log_file(
             f"{label} GPU memory: "
+            f"learning_rate={lr:.3e}, "
             f"allocated={torch.cuda.memory_allocated() / 1e9:.3f} GB, "
             f"reserved={torch.cuda.memory_reserved() / 1e9:.3f} GB, "
             f"peak_allocated="
             f"{torch.cuda.max_memory_allocated() / 1e9:.3f} GB, "
             f"peak_reserved="
             f"{torch.cuda.max_memory_reserved() / 1e9:.3f} GB")
+
 
     def on_epoch_end(self):
         self.logger.log('epoch_end_timestamps', time(), self.current_epoch)
@@ -134,25 +134,25 @@ class nnUNetTrainer1000Milestones(nnUNetTrainer):
         if self._best_ema_mass is None or self._ema_mass > self._best_ema_mass:
             self._best_ema_mass = self._ema_mass
             self.print_to_log_file(
-                f"New best EMA mass pseudo Dice: "
+                f"New best mass EMA pseudo Dice: "
                 f"{np.round(self._best_ema_mass, decimals=4)}")
-            self.save_checkpoint(join(self.output_folder, 'checkpoint_best.pth'))
             self.save_checkpoint(join(self.output_folder, 'checkpoint_best_mass.pth'))
 
-        # Best joint checkpoint
+        # Best joint checkpoint, mirroring nnU-Net's ema_fg_dice (mean foreground Dice, alpha 0.9)
+
         if self._best_ema_joint is None or self._ema_joint > self._best_ema_joint:
             self._best_ema_joint = self._ema_joint
             self.print_to_log_file(
-                f"New best EMA joint pseudo Dice: "
+                f"New best EMA pseudo Dice: "
                 f"{np.round(self._best_ema_joint, decimals=4)}")
-            self.save_checkpoint(join(self.output_folder, 'checkpoint_best_joint.pth'))
+            self.save_checkpoint(join(self.output_folder, 'checkpoint_best.pth'))
 
-        self._best_ema = self._best_ema_mass
+        self._best_ema = self._best_ema_joint
 
         # Milestone checkpoints (epoch index is 0-based; +1 for human epoch count)
         completed_epoch = self.current_epoch + 1
         if completed_epoch in self.MILESTONE_EPOCHS:
-            fname = join(self.output_folder, f'checkpoint_ep{completed_epoch}.pth')
+            fname = join(self.output_folder, f'checkpoint_epoch{completed_epoch}.pth')
             self.print_to_log_file(f"Saving milestone checkpoint: epoch {completed_epoch}")
             self.save_checkpoint(fname)
             self._log_gpu_memory(f"Milestone {completed_epoch}")
@@ -196,13 +196,13 @@ class nnUNetTrainer1000Milestones(nnUNetTrainer):
         self._ema_joint = checkpoint.get('_ema_joint', None)
 
 
-class nnUNetTrainer1000Milestones_s42(nnUNetTrainer1000Milestones):
+class nnUNetTrainerMilestones_seed42(nnUNetTrainerMilestones):
     training_seed = 42
 
 
-class nnUNetTrainer1000Milestones_s43(nnUNetTrainer1000Milestones):
+class nnUNetTrainerMilestones_seed43(nnUNetTrainerMilestones):
     training_seed = 43
 
 
-class nnUNetTrainer1000Milestones_s44(nnUNetTrainer1000Milestones):
+class nnUNetTrainerMilestones_seed44(nnUNetTrainerMilestones):
     training_seed = 44
