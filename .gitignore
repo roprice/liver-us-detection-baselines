@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Runtime artifacts (produced on the GPU server, downloaded via scp/tar)
+logs/
+predictions/
+
+# Raw data (downloaded from Zenodo, not tracked)
+data/source/AUL/
+data/source/SMC-LUD/
+
+# nnU-Net native directories (created on the GPU server)
+nnUNet_raw/
+nnUNet_preprocessed/
+nnUNet_results/
