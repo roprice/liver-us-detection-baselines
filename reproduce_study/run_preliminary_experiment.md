@@ -1,6 +1,8 @@
 # Setup and training: 1,000-epoch preliminary experiment
 
-This experiment determine the right epoch budget for liver mass detection using this data set.
+This experiment determines the right epoch budget for liver mass detection outcomes using the AUL data set.
+
+Why is this a set of manual instructions rather than a script? Because your particular environment may deviate in un predictable ways from the one this study ran on. Manually running setup and execution step by step lets you more easily pinpoint and resolve issues as they come up.
 
 ## Fixed conditions
 
@@ -15,11 +17,11 @@ This experiment determine the right epoch budget for liver mass detection using 
 | Trainer | `nnUNetTrainer1000Milestones_s{42,43,44}` |
 | Architecture | PlainConvUNet 2D |
 
-Each of the three training runs saves milestone checkpoints at epochs 150, 300, 500, 750, and 1,000, plus the overall best-joint, best-mass, and final checkpoints. After training, the runner predicts from all seven checkpoints per seed on the 110-image test set (7 checkpoints × 3 seeds × 110 images = 2,310 prediction runs), then runs a per-image GPU inference benchmark.
+Each of the three training runs saves milestone checkpoints at epochs 50, 100, 150, 300, 500, 750, and 1,000, plus the overall best-joint, best-mass, and final checkpoints. After training, the runner predicts from all nine checkpoints per seed on the 110-image test set (9 checkpoints × 3 seeds × 110 images = 2,970 prediction runs), then runs a per-image GPU inference benchmark.
 
 ## Estimated cost
 
-Roughly $13 and 6–12 GPU-hours for all three seeds including predictions. Roughly: 95%+ of that time is spent on training, 4% on setup and downloading, 1% on predictions.
+Roughly $13 and 6–12 GPU-hours for all three seeds including predictions. Very roughly: 95%+ of that time is spent on training, 4% on setup and downloading, 1% on predictions.
 
 ## Server setup
 
@@ -57,7 +59,7 @@ pip install -r requirements.txt --break-system-packages
 pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
-The explicit nnU-Net version pin is required for reproducibility. The runner captures the installed nnU-Net version, source revision, and dependency versions during its environment block, so no manual version logging is needed here.
+The explicit nnU-Net version pin (nnunetv2==2.8.1) is the reproducibility anchor. The runner logs the installed nnU-Net version, the PyTorch version, and the repo’s git SHA during its environment block; the remaining dependencies are pinned in requirements.txt.
 
 ### 5. Configure nnU-Net directories
 
@@ -131,12 +133,14 @@ nohup bash training/run_preliminary_1000_epochs.sh \
 tail -f preliminary_1000ep.log
 ```
 
-The runner preprocesses once, trains all three seeds, predicts from all seven checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
+The runner preprocesses once, trains all three seeds, predicts from all nine checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
 
-### Checkpoints saved per seed
+## Checkpoints saved per seed
 
 | Checkpoint file | Prediction label |
 |---|---|
+| `checkpoint_ep50.pth` | `ep50` |
+| `checkpoint_ep100.pth` | `ep100` |
 | `checkpoint_ep150.pth` | `ep150` |
 | `checkpoint_ep300.pth` | `ep300` |
 | `checkpoint_ep500.pth` | `ep500` |
@@ -145,7 +149,7 @@ The runner preprocesses once, trains all three seeds, predicts from all seven ch
 | `checkpoint_best_mass.pth` | `mass` |
 | `checkpoint_final.pth` | `final` |
 
-Prediction directories use the naming `predictions_625_s{SEED}_1000ep_{label}`, e.g. `predictions_625_s42_1000ep_ep150`, repeated for each seed (21 directories total).
+Prediction directories use the naming `predictions_625_s{SEED}_1000ep_{label}`, e.g. `predictions_625_s42_1000ep_ep150`, repeated for each seed (27 directories total).
 
 ## Verification
 
@@ -155,10 +159,10 @@ Prediction directories use the naming `predictions_625_s{SEED}_1000ep_{label}`, 
 tail -20 preliminary_1000ep.log
 # Look for: "Preliminary experiment complete"
 
-# 21 prediction directories (7 checkpoints × 3 seeds)
+# 27 prediction directories (9 checkpoints × 3 seeds)
 for SEED in 42 43 44; do
   echo "Seed $SEED:"
-  ls -d "$nnUNet_results"/predictions_625_s${SEED}_1000ep_* | wc -l  # expect 7
+  ls -d "$nnUNet_results"/predictions_625_s${SEED}_1000ep_* | wc -l  # expect 9
 done
 
 # Each prediction directory has 110 PNG masks
@@ -206,12 +210,7 @@ tar xzf /tmp/preliminary_experiment_full.tar.gz
 
 ## What happens next
 
-Evaluate the predictions locally. Compare Dice, centroid-based detection, IoU-based detection, and triage across epochs 150, 300, 500, 750, 1000 for all three seeds. The results determine:
-
-1. **Epoch budget for the full sweep.** If performance plateaus by epoch 150, use 150. If the learning curve shifts under the current preprocessing, adopt the epoch where detection and triage stabilize.
-2. **Primary detection definition.** Evaluate both centroid-based and IoU > 0 detection on the same predictions. Choose one as the primary metric; the other remains a secondary analysis for benchmark comparability.
-
-The runner already produced the GPU inference benchmark. To record comparable CPU inference numbers, rerun the benchmark script later on the Mac with the same checkpoints, images, and settings, changing only `--device` and `--output-dir`:
+Evaluate the predictions locally. The runner already produced the GPU inference benchmark. To record comparable CPU inference numbers, rerun the benchmark script later on the Mac with the same checkpoints, images, and settings, changing only `--device` and `--output-dir`:
 
 ```sh
 python training/benchmark_gpu_inference.py \
@@ -225,8 +224,6 @@ python training/benchmark_gpu_inference.py \
   --output-dir logs/inference_cpu
 ```
 
-Do NOT proceed to the full 8-size sweep until both decisions are made.
-
 ## Environment variable notes
 
 nnU-Net environment variables do not persist between SSH sessions unless written to `.bashrc` (step 5). If you reconnect and did not run that step, re-export before running anything:
@@ -238,6 +235,6 @@ export nnUNet_results="$HOME/nnUNet_results"
 export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
 ```
 
-## Spot/preemptible instance notes
+## Spot/preemptible instance notes for Verda.com
 
-The runner passes `--c` to `nnUNetv2_train`, so training resumes from the last checkpoint if preempted. Re-export environment variables (or rely on `.bashrc`) and rerun the same command. Preprocessing is skipped if already done. Use the same GPU type across all three seeds for consistency.
+To train on a cheaper spot instance on Verda.com, as of September 2026, assumes the risk of the instance being taken. The runner passes `--c` to `nnUNetv2_train`, so training resumes from the last checkpoint if preempted. Re-export environment variables (or rely on `.bashrc`) and rerun the same command. Preprocessing is skipped if already done. Use the same GPU type across all three seeds for consistency.

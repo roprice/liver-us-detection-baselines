@@ -4,7 +4,7 @@ selection, for the preliminary epoch-budget experiment.
 
 Uses a seeded dual-checkpoint approach:
   - Runs to nnU-Net's default 1000 epochs
-  - Saves dedicated checkpoints at epochs 150, 300, 500, 750
+  - Saves dedicated checkpoints at epochs 50, 100, 150, 300, 500, 750
     (in addition to the automatic best_mass, best_joint, and final)
   - Milestone checkpoints are named checkpoint_ep{N}.pth
 
@@ -38,7 +38,7 @@ class nnUNetTrainer1000Milestones(nnUNetTrainer):
     training_seed = None
     MASS_CLASS_INDEX = 1
     EMA_ALPHA = 0.9
-    MILESTONE_EPOCHS = {150, 300, 500, 750}
+    MILESTONE_EPOCHS = {50, 100, 150, 300, 500, 750}
 
     def __init__(self, plans, configuration, fold, dataset_json,
                  device=torch.device('cuda')):

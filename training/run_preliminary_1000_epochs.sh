@@ -2,9 +2,9 @@
 set -e
 
 # Preliminary experiment: train the 625-image set to 1000 epochs across
-# 3 seeds (42, 43, 44), saving milestone checkpoints at 150/300/500/750,
+# 3 seeds (42, 43, 44), saving milestone checkpoints at 50/100/150/300/500/750,
 # plus best_mass, best_joint, and final (epoch 1000).
-# Then predict from all 7 checkpoints for each seed.
+# Then predict from all 9 checkpoints for each seed.
 #
 # Instrumentation:
 #   - nvidia-smi GPU sampling (~1/s): utilization, memory, power, temperature
@@ -37,6 +37,8 @@ SEEDS=(42 43 44)
 
 # Ordered list of checkpoints for deterministic iteration
 CHECKPOINT_ORDER=(
+    checkpoint_ep50.pth
+    checkpoint_ep100.pth
     checkpoint_ep150.pth
     checkpoint_ep300.pth
     checkpoint_ep500.pth
@@ -46,6 +48,8 @@ CHECKPOINT_ORDER=(
     checkpoint_final.pth
 )
 declare -A CHECKPOINT_LABELS
+CHECKPOINT_LABELS[checkpoint_ep50.pth]=ep50
+CHECKPOINT_LABELS[checkpoint_ep100.pth]=ep100
 CHECKPOINT_LABELS[checkpoint_ep150.pth]=ep150
 CHECKPOINT_LABELS[checkpoint_ep300.pth]=ep300
 CHECKPOINT_LABELS[checkpoint_ep500.pth]=ep500
@@ -322,7 +326,7 @@ echo "    predict_defaults.txt               nnUNetv2_predict --help output"
 echo "    time_preprocess.txt                /usr/bin/time: peak RSS, CPU time for preprocessing"
 echo ""
 echo "  PyTorch peak GPU memory (allocated/reserved) is logged by the custom"
-echo "  trainer at initialization, milestones (150/300/500/750), and training"
+echo "  trainer at initialization, milestones (50/100/150/300/500/750), and training"
 echo "  completion in nnU-Net's training_log_*.txt files under:"
 echo "    ${nnUNet_results}/${DATASET_NAME}/nnUNetTrainer1000Milestones_s{SEED}__nnUNetPlans__2d/fold_0/"
 echo ""
@@ -332,4 +336,4 @@ echo "    inference_summary_cuda.csv         per-seed model load time, median/me
 echo "    inference_settings_cuda.json       exact settings to replicate on CPU later"
 echo "    ${LOGS_DIR}/time_gpu_inference_benchmark.txt   /usr/bin/time: peak RSS, CPU time for the benchmark script"
 echo ""
-echo "Predictions: predictions_625_s{42,43,44}_1000ep_{ep150,ep300,ep500,ep750,joint,mass,final}/"
+echo "Predictions: predictions_625_s{42,43,44}_1000ep_{ep50,ep100,ep150,ep300,ep500,ep750,joint,mass,final}/"
