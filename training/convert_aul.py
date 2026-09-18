@@ -1,5 +1,5 @@
 """Convert AUL source images and polygon annotations to nnU-Net
-Dataset001_LiverUS format.
+ format.
 
 Images are passed through without modification. Segmentation labels are
 rendered from expert-annotated polygons as pixel masks with three
