@@ -1,27 +1,29 @@
-# Setup and training: 1,000-epoch preliminary experiment
+# Setup and training: manually run preliminary milestones test
 
-This experiment determines the right epoch budget for liver mass detection outcomes using the AUL data set.
+This document lets you manually reproduce the first test in this study, which saves checkpoints across a sweep of intervals.
 
-Why is this a set of manual instructions rather than a script? Because your particular environment may deviate in un predictable ways from the one this study ran on. Manually running setup and execution step by step lets you more easily pinpoint and resolve issues as they come up.
+Early checkpoints reflect a learning rate schedule tuned for 1000 epochs; they unlike independent shorter training runs. Still, the sweep reveals where Dice gains plateau under this schedule, which is sufficient to set an epoch budget for subsequent experiments.
+
+Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
 
 ## Fixed conditions
 
 | Setting | Value |
 |---|---|
-| Dataset | AUL / `Dataset001_LiverUS` |
+| Dataset | AUL / `Dataset001_AUL` |
 | Training images | 625 |
 | Test images | 110 |
 | Fold | 0 |
 | Initialization seeds | 42, 43, 44 |
 | Epoch budget | 1,000 |
-| Trainer | `nnUNetTrainer1000Milestones_s{42,43,44}` |
+| Trainer | `nnUNetTrainerMilestones_seed{42,43,44}` |
 | Architecture | PlainConvUNet 2D |
 
-Each of the three training runs saves milestone checkpoints at epochs 50, 100, 150, 300, 500, 750, and 1,000, plus the overall best-joint, best-mass, and final checkpoints. After training, the runner predicts from all nine checkpoints per seed on the 110-image test set (9 checkpoints × 3 seeds × 110 images = 2,970 prediction runs), then runs a per-image GPU inference benchmark.
+Each seed saves multiple milestone checkpoints (epochs 50 through 1000), a best-mean-Dice checkpoint, and a best-mass-Dice checkpoint (both EMA-smoothed). After training, the runner triggers prediction on all 27 checkpoints on the 110-image test set; it runs a per-image GPU inference benchmark (`training/benchmark_gpu_inference.py`).
 
-## Estimated cost
+## Estimated cost as of September 2026
 
-Roughly $13 and 6–12 GPU-hours for all three seeds including predictions. Very roughly: 95%+ of that time is spent on training, 4% on setup and downloading, 1% on predictions.
+On Verda.com's RTX PRO 6000 $0.95/hr spot pricing, roughly $10 and 11 GPU-hours for all three seeds including predictions. That's mostly training time but factors in setup and download and deletion times.
 
 ## Server setup
 
@@ -42,7 +44,7 @@ git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
 ```
 
-Confirm this checkout contains `training/run_preliminary_1000_epochs.sh`, the `training/custom_trainers/` directory, and `training/benchmark_gpu_inference.py` before continuing.
+Confirm this checkout contains `training/run_preliminary_milestones_test.sh`, the `training/custom_trainers/` directory, and `training/benchmark_gpu_inference.py` before continuing.
 
 ### 3. Resolve system Python package conflicts
 
@@ -110,7 +112,7 @@ cd ../..
 ```sh
 python training/convert_aul.py \
   --raw-data-dir data/source/AUL \
-  --output-dir "$nnUNet_raw/Dataset001_LiverUS"
+  --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
 
 Images pass through without modification; only the segmentation labels are rendered from the annotated polygons.
@@ -118,19 +120,19 @@ Images pass through without modification; only the segmentation labels are rende
 ### 8. Verify input data
 
 ```sh
-ls "$nnUNet_raw/Dataset001_LiverUS/imagesTr" | wc -l  # expect 625
-ls "$nnUNet_raw/Dataset001_LiverUS/imagesTs" | wc -l  # expect 110
+ls "$nnUNet_raw/Dataset001_AUL/imagesTr" | wc -l  # expect 625
+ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
 ```
 
-## Training
+## Training & Predictions
 
 ### 9. Run the preliminary experiment
 
 ```sh
-nohup bash training/run_preliminary_1000_epochs.sh \
-  > preliminary_1000ep.log 2>&1 &
+nohup bash training/run_preliminary_milestones_test.sh \
+  > preliminary_milestones_test.log 2>&1 &
 
-tail -f preliminary_1000ep.log
+tail -f preliminary_milestones_test.log
 ```
 
 The runner preprocesses once, trains all three seeds, predicts from all nine checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
@@ -139,34 +141,34 @@ The runner preprocesses once, trains all three seeds, predicts from all nine che
 
 | Checkpoint file | Prediction label |
 |---|---|
-| `checkpoint_ep50.pth` | `ep50` |
-| `checkpoint_ep100.pth` | `ep100` |
-| `checkpoint_ep150.pth` | `ep150` |
-| `checkpoint_ep300.pth` | `ep300` |
-| `checkpoint_ep500.pth` | `ep500` |
-| `checkpoint_ep750.pth` | `ep750` |
-| `checkpoint_best_joint.pth` | `joint` |
-| `checkpoint_best_mass.pth` | `mass` |
+| `checkpoint_epoch50.pth` | `epoch50` |
+| `checkpoint_epoch100.pth` | `epoch100` |
+| `checkpoint_epoch150.pth` | `epoch150` |
+| `checkpoint_epoch300.pth` | `epoch300` |
+| `checkpoint_epoch500.pth` | `epoch500` |
+| `checkpoint_epoch750.pth` | `epoch750` |
+| `checkpoint_best.pth` | `best` |
+| `checkpoint_best_mass.pth` | `best_mass` |
 | `checkpoint_final.pth` | `final` |
 
-Prediction directories use the naming `predictions_625_s{SEED}_1000ep_{label}`, e.g. `predictions_625_s42_1000ep_ep150`, repeated for each seed (27 directories total).
+Prediction directories use the naming `predictions_milestones_625images_seed{SEED}_{label}`, e.g. `predictions_milestones_625images_seed42_epoch500`, repeated for each seed (27 directories total).
 
 ## Verification
 
 ### 10. Verify completion
 
 ```sh
-tail -20 preliminary_1000ep.log
+tail -20 preliminary_milestones_test.log
 # Look for: "Preliminary experiment complete"
 
 # 27 prediction directories (9 checkpoints × 3 seeds)
 for SEED in 42 43 44; do
   echo "Seed $SEED:"
-  ls -d "$nnUNet_results"/predictions_625_s${SEED}_1000ep_* | wc -l  # expect 9
+  ls -d "$nnUNet_results"/predictions_milestones_625images_seed${SEED}_* | wc -l  # expect 9
 done
 
 # Each prediction directory has 110 PNG masks
-for DIR in "$nnUNet_results"/predictions_625_s*_1000ep_*; do
+for DIR in "$nnUNet_results"/predictions_milestones_625images_seed*_*; do
   COUNT=$(ls "$DIR"/*.png 2>/dev/null | wc -l)
   echo "$DIR: $COUNT files"  # expect 110 each
 done
@@ -180,7 +182,7 @@ ls logs/inference/  # per-image, summary, settings CSVs/JSON
 
 ## Download results
 
-Do not selectively download. Download the full set of evidence needed to reconstruct and audit the run: the repo (code plus the logs and terminal output it accumulated during the run), all three nnU-Net working directories, and the shell history of every command actually executed. SSH key material is deliberately excluded.
+Rather than selectively downloading, download the full set of evidence needed to reconstruct and audit the run: the repo (code plus the logs and terminal output it accumulated during the run), all three nnU-Net working directories, and the shell history of every command actually executed. SSH key material is deliberately excluded.
 
 ```sh
 # On the GPU server
@@ -191,7 +193,7 @@ cd ~
 # in a still-open session may not have been flushed yet.
 history -a
 
-tar czf preliminary_experiment_full.tar.gz \
+tar czf preliminary_milestones_full.tar.gz \
   liver-us-detection-baselines/ \
   nnUNet_raw/ \
   nnUNet_preprocessed/ \
@@ -204,8 +206,8 @@ Then, on the Mac:
 ```sh
 cd ~/Projects/liver-us-detection-baselines
 
-scp root@<server-ip>:~/preliminary_experiment_full.tar.gz /tmp/
-tar xzf /tmp/preliminary_experiment_full.tar.gz
+scp root@<server-ip>:~/preliminary_milestones_full.tar.gz /tmp/
+tar xzf /tmp/preliminary_milestones_full.tar.gz
 ```
 
 ## What happens next
@@ -215,10 +217,10 @@ Evaluate the predictions locally. The runner already produced the GPU inference 
 ```sh
 python training/benchmark_gpu_inference.py \
   --nnunet-raw "$nnUNet_raw" \
-  --dataset-name Dataset001_LiverUS \
+  --dataset-name Dataset001_AUL \
   --dataset-id 1 \
   --seeds 42 43 44 \
-  --trainer-prefix nnUNetTrainer1000Milestones_s \
+  --trainer-prefix nnUNetTrainerMilestones_seed \
   --checkpoint checkpoint_final.pth \
   --device cpu \
   --output-dir logs/inference_cpu
@@ -238,3 +240,8 @@ export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_tra
 ## Spot/preemptible instance notes for Verda.com
 
 To train on a cheaper spot instance on Verda.com, as of September 2026, assumes the risk of the instance being taken. The runner passes `--c` to `nnUNetv2_train`, so training resumes from the last checkpoint if preempted. Re-export environment variables (or rely on `.bashrc`) and rerun the same command. Preprocessing is skipped if already done. Use the same GPU type across all three seeds for consistency.
+
+
+## Data deletion
+
+Final step - be sure to delete not just the instance but the module that the data is saved on.
