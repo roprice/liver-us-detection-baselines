@@ -105,14 +105,18 @@ python -c "import torch; print(f'GPUs visible to PyTorch: {torch.cuda.device_cou
 python -c "import nnunetv2; print(f'nnU-Net {nnunetv2.__version__}')" \
     || echo "WARNING: could not determine nnU-Net version"
 
-# nnU-Net source revision
+# nnU-Net version and source revision.
+# A pip install (the standard path here) has no .git directory, so the
+# SHA is reported as n/a rather than a misleading "not a git repo".
+NNUNET_VERSION=$(python -c "from importlib.metadata import version; print(version('nnunetv2'))" 2>/dev/null || echo "unknown")
 NNUNET_PATH=$(python -c "import nnunetv2; print(nnunetv2.__path__[0])" 2>/dev/null || echo "")
 if [ -n "$NNUNET_PATH" ]; then
-    NNUNET_SHA=$(git -C "$NNUNET_PATH" rev-parse HEAD 2>/dev/null || echo "not a git repo")
-    echo "nnU-Net source SHA: ${NNUNET_SHA}"
+    NNUNET_SHA=$(git -C "$NNUNET_PATH" rev-parse HEAD 2>/dev/null || echo "n/a (pip install)")
 else
-    echo "WARNING: could not locate nnU-Net installation path"
+    NNUNET_SHA="n/a (could not locate install path)"
 fi
+echo "nnU-Net version: ${NNUNET_VERSION}"
+echo "nnU-Net source SHA: ${NNUNET_SHA}"
 
 # This repo's revision
 REPO_SHA=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "not a git repo")
