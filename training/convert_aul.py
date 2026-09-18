@@ -5,7 +5,20 @@ Images are passed through without modification. Segmentation labels are
 rendered from expert-annotated polygons as pixel masks with three
 classes: background (0), liver (1), mass (2).
 
-Downloads from: https://zenodo.org/records/7272660
+Dataset: Annotated Ultrasound Liver (AUL) images
+DOI: 10.5281/zenodo.7272660 (https://doi.org/10.5281/zenodo.7272660)
+Citation: Xu, Y., Zheng, B., Liu, X., Wu, T., Ju, J., Wang, S., Lian, Y.,
+          Zhang, H., Liang, T., Sang, Y., Jiang, R., Wang, G., Ren, J., &
+          Chen, T. (2022). Annotated Ultrasound Liver images [Data set].
+          Zenodo. https://doi.org/10.5281/zenodo.7272660
+This is a versioned Zenodo record (not the floating concept DOI
+10.5281/zenodo.7272659), so it resolves to the same fixed archive files
+regardless of any future dataset versions published under the same
+concept DOI. File checksums as of this record:
+  Benign.zip    md5:c37fef0cb2730236a79ef57e5315995e
+  Malignant.zip md5:63894a9e5654a69c3b94bda84071dfb0
+  Normal.zip    md5:a7e16299b2cf12ca4a6c3468d2e4978f
+
 Expected input structure:
     AUL/
         Benign/image/*.jpg, Benign/segmentation/{liver,mass}/*.json

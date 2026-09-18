@@ -1,6 +1,6 @@
 # Setup and training: 1,000-epoch preliminary experiment
 
-This is the first step of training. It runs BEFORE the full 8-size training sweep. Its purpose is to determine the epoch budget and validate the detection metric under the current preprocessing (images passed through without scan-sector masking).
+This experiment determine the right epoch budget for liver mass detection using this data set.
 
 ## Fixed conditions
 
@@ -19,11 +19,11 @@ Each of the three training runs saves milestone checkpoints at epochs 150, 300, 
 
 ## Estimated cost
 
-Roughly $13 and 6–12 GPU-hours for all three seeds including predictions. Training dominates; predictions are fast.
+Roughly $13 and 6–12 GPU-hours for all three seeds including predictions. Roughly: 95%+ of that time is spent on training, 4% on setup and downloading, 1% on predictions.
 
 ## Server setup
 
-All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM).
+All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu.
 
 ### 1. Install system dependencies
 
@@ -80,11 +80,24 @@ ENVEOF
 
 ### 6. Download AUL from Zenodo
 
+Dataset: Annotated Ultrasound Liver (AUL) images
+DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)
+Citation: Xu, Y., Zheng, B., Liu, X., Wu, T., Ju, J., Wang, S., Lian, Y., Zhang, H., Liang, T., Sang, Y., Jiang, R., Wang, G., Ren, J., & Chen, T. (2022). Annotated Ultrasound Liver images [Data set]. Zenodo. https://doi.org/10.5281/zenodo.7272660
+
+This is a versioned Zenodo record, not the floating concept DOI (`10.5281/zenodo.7272659`), so `zenodo_get 7272660` always resolves to the same fixed archive files regardless of any future dataset versions published under the same concept DOI. File checksums as of this record:
+
+| File | MD5 |
+|---|---|
+| `Benign.zip` | `c37fef0cb2730236a79ef57e5315995e` |
+| `Malignant.zip` | `63894a9e5654a69c3b94bda84071dfb0` |
+| `Normal.zip` | `a7e16299b2cf12ca4a6c3468d2e4978f` |
+
 ```sh
 mkdir -p data/source
 cd data/source
 pip install zenodo-get --break-system-packages
 zenodo_get 7272660
+md5sum *.zip  # verify against the checksums above
 unzip '*.zip' -d AUL
 rm -rf AUL/__MACOSX
 cd ../..
@@ -163,16 +176,23 @@ ls logs/inference/  # per-image, summary, settings CSVs/JSON
 
 ## Download results
 
-Do not selectively download. Download the entire GPU working directory to preserve all checkpoints, predictions, logs, nnU-Net metadata, and training history.
+Do not selectively download. Download the full set of evidence needed to reconstruct and audit the run: the repo (code plus the logs and terminal output it accumulated during the run), all three nnU-Net working directories, and the shell history of every command actually executed. SSH key material is deliberately excluded.
 
 ```sh
 # On the GPU server
 cd ~
+
+# Flush this session's in-memory history to ~/.bash_history before archiving.
+# Bash only writes history to disk on shell exit by default, and nohup'd work
+# in a still-open session may not have been flushed yet.
+history -a
+
 tar czf preliminary_experiment_full.tar.gz \
   liver-us-detection-baselines/ \
   nnUNet_raw/ \
   nnUNet_preprocessed/ \
-  nnUNet_results/
+  nnUNet_results/ \
+  .bash_history
 ```
 
 Then, on the Mac:
