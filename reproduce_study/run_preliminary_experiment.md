@@ -81,6 +81,7 @@ ENVEOF
 ### 6. Download AUL from Zenodo
 
 ```sh
+mkdir -p data/source
 cd data/source
 pip install zenodo-get --break-system-packages
 zenodo_get 7272660
