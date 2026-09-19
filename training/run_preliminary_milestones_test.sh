@@ -106,7 +106,7 @@ python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA {torch.versio
     || echo "WARNING: could not determine PyTorch version"
 python -c "import torch; print(f'GPUs visible to PyTorch: {torch.cuda.device_count()}')" \
     || echo "WARNING: could not query PyTorch GPU count"
-python -c "import nnunetv2; print(f'nnU-Net {nnunetv2.__version__}')" \
+python -c "from importlib.metadata import version; print(f'nnU-Net {version(\"nnunetv2\")}')" \
     || echo "WARNING: could not determine nnU-Net version"
 
 # nnU-Net version and source revision.

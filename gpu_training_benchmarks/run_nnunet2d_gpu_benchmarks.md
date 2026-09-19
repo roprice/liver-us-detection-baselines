@@ -2,13 +2,13 @@
 
 We implemented nnU-Net's 2D benchmark using the study's AUL dataset with our 85/15 split yielding 625 training images (static greyscale images, mean dimensions of ~512x700px), `nnUNetPlans` configuration, fold 0, and PyTorch version on each instance.
 
-## Benchmarked GPU cost and performance per 1000 epochs
+## Benchmarked GPU cost and performance per training 1000 epochs
 
-| GPU | Cost | Spot cost | Training time | Cost per epoch |
+| GPU | Time | Cost | Spot cost | Cost per epoch |
 |---|---|---|---|---|
-|  RTX 6000 Ada | $10.12 | $5.06 | 9.20 hours | $0.01012 |
-|  RTX PRO 6000 | $10.64 | $5.32 | 5.72 hours | $0.01064 |
-|  L40S | $13.87 | $6.94 | 9.54 hours | $0.01387 |
+|  RTX 6000 Ada | 9.20 hours | $10.12 | $5.06 | $0.01012 |
+|  RTX PRO 6000 | 5.72 hours | $10.64 | $5.32 | $0.01064 |
+|  L40S | 9.54 hours | $13.87 | $6.94 | $0.01387 |
 
 These figures don't account for setup, predictions or total wall clock - they apply only to training compute.
 
