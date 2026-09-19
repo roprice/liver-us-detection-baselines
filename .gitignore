@@ -17,3 +17,5 @@ data/source/SMC-LUD/
 nnUNet_raw/
 nnUNet_preprocessed/
 nnUNet_results/
+
+AGENTS.md
