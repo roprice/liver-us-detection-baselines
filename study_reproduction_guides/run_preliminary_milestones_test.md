@@ -165,7 +165,7 @@ Detach from tmux without stopping training with `Ctrl+b` then `d`. Reattach afte
 From a separate SSH session (so these commands do not interfere with the training shell):
 
 ```sh
-tail -f preliminary_milestones_test.log
+tail -f ~/liver-us-detection-baselines/preliminary_milestones_test.log
 
 nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw --format=csv,noheader
 ```
