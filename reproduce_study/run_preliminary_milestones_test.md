@@ -27,7 +27,7 @@ On Verda.com's RTX PRO 6000 $0.95/hr spot pricing, roughly $10 and 11 GPU-hours 
 
 ## Server setup
 
-All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu.
+All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. Once you have provisioned the instance and connected to it by SSH, run the following commands.
 
 ### 1. Install system dependencies
 
@@ -52,6 +52,7 @@ Confirm this checkout contains `training/run_preliminary_milestones_test.sh`, th
 rm -f /usr/lib/python3/dist-packages/typing_extensions.py
 rm -rf /usr/lib/python3/dist-packages/typing_extensions-*.dist-info
 rm -rf /usr/lib/python3/dist-packages/idna*
+rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click-*.dist-info
 ```
 
 ### 4. Install Python dependencies
@@ -79,6 +80,7 @@ export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
 export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export PROMPT_COMMAND='history -a'
 ENVEOF
 ```
 
@@ -129,10 +131,23 @@ ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
 ### 9. Run the preliminary experiment
 
 ```sh
-nohup bash training/run_preliminary_milestones_test.sh \
-  > preliminary_milestones_test.log 2>&1 &
+# Start a persistent session so training survives an SSH disconnect
+tmux new -s training
 
+# Inside tmux, run the runner, teeing output to a file you can tail later
+bash training/run_preliminary_milestones_test.sh 2>&1 | tee preliminary_milestones_test.log
+```
+
+Detach from tmux without stopping training with `Ctrl+b` then `d`. Reattach after a reconnect (or from any other SSH session) with `tmux attach -t training`. The runner keeps running inside tmux regardless of the SSH connection.
+
+#### Optionally monitor progress
+
+From a separate SSH session (so these commands do not interfere with the training shell):
+
+```sh
 tail -f preliminary_milestones_test.log
+
+nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw --format=csv,noheader
 ```
 
 The runner preprocesses once, trains all three seeds, predicts from all nine checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
@@ -158,6 +173,9 @@ Prediction directories use the naming `predictions_milestones_625images_seed{SEE
 ### 10. Verify completion
 
 ```sh
+# Reattach to the tmux session, or tail the log file
+tmux attach -t training
+# or, if detached:
 tail -20 preliminary_milestones_test.log
 # Look for: "Preliminary experiment complete"
 
@@ -189,8 +207,8 @@ Rather than selectively downloading, download the full set of evidence needed to
 cd ~
 
 # Flush this session's in-memory history to ~/.bash_history before archiving.
-# Bash only writes history to disk on shell exit by default, and nohup'd work
-# in a still-open session may not have been flushed yet.
+# Bash only writes history to disk on shell exit by default, and work running
+# in a still-open tmux session may not have been flushed yet.
 history -a
 
 tar czf preliminary_milestones_full.tar.gz \
