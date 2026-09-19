@@ -29,14 +29,31 @@ On Verda.com's RTX PRO 6000 $0.95/hr spot pricing, roughly $10 and 11 GPU-hours 
 
 All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. Once you have provisioned the instance and connected to it by SSH, run the following commands.
 
-### 1. Install system dependencies
+### 1. Configure prompt and history
+
+```sh
+# Burnt-orange prompt with a timestamp, plus history that timestamps
+# and flushes each command to disk immediately.
+cat >> ~/.bashrc << 'PROMPTEOF'
+PS1='\[\e[38;2;200;85;0m\]\u@\h:\w \t \[\e[0m\]\$ '
+export HISTTIMEFORMAT='%F %T '
+export PROMPT_COMMAND='history -a'
+PROMPTEOF
+
+# Apply to the current shell now (new shells pick it up from ~/.bashrc)
+source ~/.bashrc
+```
+
+Run this before any other command so command history is captured from the very start of the session.
+
+### 2. Install system dependencies
 
 ```sh
 apt update
-apt install python3-pip unzip python-is-python3 -y
+apt install python3-pip unzip python-is-python3 tmux -y
 ```
 
-### 2. Clone the repository
+### 3. Clone the repository
 
 ```sh
 cd ~
@@ -46,7 +63,7 @@ cd liver-us-detection-baselines
 
 Confirm this checkout contains `training/run_preliminary_milestones_test.sh`, the `training/custom_trainers/` directory, and `training/benchmark_gpu_inference.py` before continuing.
 
-### 3. Resolve system Python package conflicts
+### 4. Resolve system Python package conflicts
 
 ```sh
 rm -f /usr/lib/python3/dist-packages/typing_extensions.py
@@ -55,7 +72,7 @@ rm -rf /usr/lib/python3/dist-packages/idna*
 rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click-*.dist-info
 ```
 
-### 4. Install Python dependencies
+### 5. Install Python dependencies
 
 ```sh
 pip install -r requirements.txt --break-system-packages
@@ -64,7 +81,7 @@ pip install "nnunetv2==2.8.1" idna --break-system-packages
 
 The explicit nnU-Net version pin (nnunetv2==2.8.1) is the reproducibility anchor. The runner logs the installed nnU-Net version, the PyTorch version, and the repo’s git SHA during its environment block; the remaining dependencies are pinned in requirements.txt.
 
-### 5. Configure nnU-Net directories
+### 6. Configure nnU-Net directories
 
 ```sh
 export nnUNet_raw="$HOME/nnUNet_raw"
@@ -80,11 +97,10 @@ export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
 export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
-export PROMPT_COMMAND='history -a'
 ENVEOF
 ```
 
-### 6. Download AUL from Zenodo
+### 7. Download AUL from Zenodo
 
 Dataset: Annotated Ultrasound Liver (AUL) images
 DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)
@@ -109,7 +125,7 @@ rm -rf AUL/__MACOSX
 cd ../..
 ```
 
-### 7. Convert to nnU-Net format
+### 8. Convert to nnU-Net format
 
 ```sh
 python training/convert_aul.py \
@@ -119,7 +135,7 @@ python training/convert_aul.py \
 
 Images pass through without modification; only the segmentation labels are rendered from the annotated polygons.
 
-### 8. Verify input data
+### 9. Verify input data
 
 ```sh
 ls "$nnUNet_raw/Dataset001_AUL/imagesTr" | wc -l  # expect 625
@@ -128,7 +144,7 @@ ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
 
 ## Training & Predictions
 
-### 9. Run the preliminary experiment
+### 10. Run the preliminary experiment
 
 ```sh
 # Start a persistent session so training survives an SSH disconnect
@@ -170,7 +186,7 @@ Prediction directories use the naming `predictions_milestones_625images_seed{SEE
 
 ## Verification
 
-### 10. Verify completion
+### 11. Verify completion
 
 ```sh
 # Reattach to the tmux session, or tail the log file
@@ -246,7 +262,7 @@ python training/benchmark_gpu_inference.py \
 
 ## Environment variable notes
 
-nnU-Net environment variables do not persist between SSH sessions unless written to `.bashrc` (step 5). If you reconnect and did not run that step, re-export before running anything:
+nnU-Net environment variables do not persist between SSH sessions unless written to `.bashrc` (step 6). If you reconnect and did not run that step, re-export before running anything:
 
 ```sh
 export nnUNet_raw="$HOME/nnUNet_raw"
