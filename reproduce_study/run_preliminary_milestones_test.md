@@ -27,9 +27,13 @@ On Verda.com's RTX PRO 6000 $0.95/hr spot pricing, roughly $10 and 11 GPU-hours 
 
 ## Server setup
 
-All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. 
+All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. Once you have provisioned the instance and connected to it by SSH, run the following commands.
 
- 
+### 1. Configure prompt and history
+
+```sh
+# Capture every command to ~/.bash_history immediately, starting now
+export PROMPT_COMMAND='history -a'
 
 # Burnt-orange prompt with a timestamp, plus history that timestamps
 # and flushes each command to disk immediately (persists for future shells).
