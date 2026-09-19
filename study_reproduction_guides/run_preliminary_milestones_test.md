@@ -165,10 +165,11 @@ Detach from tmux without stopping training with `Ctrl+b` then `d`. Reattach afte
 From a separate SSH session (so these commands do not interfere with the training shell):
 
 ```sh
-tail -f ~/liver-us-detection-baselines/preliminary_milestones_test.log
-
 nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw --format=csv,noheader
+
+tail -f ~/liver-us-detection-baselines/preliminary_milestones_test.log
 ```
+Ctl+C to close `tail`.
 
 The runner preprocesses once, trains all three seeds, predicts from all nine checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
 
