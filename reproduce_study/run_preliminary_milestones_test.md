@@ -32,15 +32,18 @@ All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM
 ### 1. Configure prompt and history
 
 ```sh
+# Capture every command to ~/.bash_history immediately, starting now
+export PROMPT_COMMAND='history -a'
+
 # Burnt-orange prompt with a timestamp, plus history that timestamps
-# and flushes each command to disk immediately.
+# and flushes each command to disk immediately (persists for future shells).
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;2;200;85;0m\]\u@\h:\w \t \[\e[0m\]\$ '
 export HISTTIMEFORMAT='%F %T '
 export PROMPT_COMMAND='history -a'
 PROMPTEOF
 
-# Apply to the current shell now (new shells pick it up from ~/.bashrc)
+# Apply the rest to the current shell now (new shells pick it up from ~/.bashrc)
 source ~/.bashrc
 ```
 
