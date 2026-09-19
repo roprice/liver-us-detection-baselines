@@ -1,16 +1,16 @@
 # Compare GPU rental costs for AUL training
 
-This experiment compares three GPU rental instances with the built-in nnU-Net training benchmark. It supports hardware selection for the study.
+This experiment compares GPU rental instances with the built-in nnU-Net training benchmark. It supports hardware selection for the study.
 
-The runner uses `nnUNetTrainerBenchmark_5epochs` from nnU-Net 2.8.1. It includes data loading, augmentation, training, and validation batches. It skips model checkpoints and final predictions. It does not call `benchmark_gpu_inference.py` or a custom trainer.
+The benchmark uses `nnUNetTrainerBenchmark_5epochs` from nnU-Net 2.8.1. It includes data loading, augmentation, training, and validation batches. It skips model checkpoints and final predictions. It does not call `benchmark_gpu_inference.py` or a custom trainer.
 
-An epoch is one fixed interval of training and validation. Each benchmark epoch contains 250 training batches and 50 validation batches. Each instance completes three separate runs of five epochs.
+An epoch is one fixed interval of training and validation. Each benchmark epoch contains 250 training batches and 50 validation batches. Each GPU instance runs one five-epoch benchmark.
 
-The primary measurement is the median of three fastest-epoch times, one from each run. This follows the built-in benchmark metric. It estimates favorable sustained performance rather than total rental time. The runner also saves all five epoch times and elapsed process time for each run.
+The primary measurement is `fastest_epoch`, which nnU-Net writes to `benchmark_result.json`. The benchmark also records the GPU name, PyTorch version, and cuDNN version.
 
 ## Files and fixed conditions
 
-Place `run_gpu_training_benchmark.sh` in `training/`. Place this guide in `reproduce_study/`.
+This guide uses `training/convert_aul.py` from the study repository.
 
 | Condition | Value |
 |---|---|
@@ -22,274 +22,322 @@ Place `run_gpu_training_benchmark.sh` in `training/`. Place this guide in `repro
 | Fold | 0 |
 | Trainer | `nnUNetTrainerBenchmark_5epochs` |
 | nnU-Net version | 2.8.1 |
-| Repeats | 3 separate processes |
-| Augmentation workers | 8 on every instance |
-| Compilation | Enabled on every instance |
 | GPUs per run | 1 |
+| Compilation | Disabled on every instance |
 
-The repeats measure timing variation.
+We selected Verda.com based on its EU ownership and location, pricing flexibility for short runs, and ease of use. These instructions may be useful for other cloud GPU providers too.
 
-The first step is to select a GPU provider. We have selected Verda.com, based on its EU ownership and location, pricing flexibility for short runs, and ease of use. These instructions may be useful for other cloud GPU providers, however.
+## First instance
 
-## 1. Record the rental choices
+Use the first instance to download AUL, convert it, create the shared 2D preprocessing output, and run the first benchmark. Download the prepared input archive before you delete this instance.
 
-For whichever rental GPU instance you're benchmarking, record the name and price, as we have done" `gpu_training_benchmarks/run_nnunet2d_gpu_benchmarks.md`
-
-nnU-Net 2D is optimized for smaller GPUs. For this study, therefore, the least expensive options from Verda or any other other GPU hosting provider are likely adequate to the task. We tried the three least expensive options.
-
-
-## 2. Configure prompt and history
+### 1. Configure prompt and history
 
 ```sh
-# Capture every subsequent command in ~/.bash_history 
+# Capture every subsequent command in ~/.bash_history
 export PROMPT_COMMAND='history -a'
 
-# More visible prompt with a timestamp, save each command to disk 
+# More visible prompt with a timestamp, save each command to disk
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
 export HISTTIMEFORMAT='%F %T '
 export PROMPT_COMMAND='history -a'
 PROMPTEOF
 
-# Apply to current shell (new shells pick it up from ~/.bashrc)
+# Apply to current shell. New shells read ~/.bashrc.
 source ~/.bashrc
 ```
 
-## 3. Install shell dependencies
+Run this before any other command so command history is captured from the start of the session.
 
-Connect to the first instance through SSH. Run these commands as root, or prefix the package commands with `sudo`:
+### 2. Install system dependencies
 
-```bash
+```sh
 apt update
-apt install -y git python3-venv unzip tmux
+apt install python3-pip unzip python-is-python3 tmux -y
 ```
 
-## 4. Fetch the study revision
+### 3. Clone the repository
 
-Commit both new files to the study repository before this step. Replace `STUDY_COMMIT` with that full commit identifier. If the repository URL changes, replace the URL too.
-
-```bash
-cd "$HOME"
+```sh
+cd ~
 git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
-git checkout STUDY_COMMIT
 ```
 
-Use the same commit on every instance. Make sure that this checkout contains both new files and `training/convert_aul.py`.
+Make sure that this checkout contains `training/convert_aul.py` before continuing.
 
-## 5. Install Python dependencies
+### 4. Resolve system Python package conflicts
 
-Create a separate environment that can access the image's installed PyTorch:
-
-```bash
-python3 -m venv --system-site-packages .venv-gpu-benchmark
-source .venv-gpu-benchmark/bin/activate
-python -m pip install -r requirements.txt "nnunetv2==2.8.1" zenodo-get
-python -m pip check
-python -c "import torch; assert torch.cuda.is_available(), 'CUDA is unavailable'; print(torch.__version__, torch.cuda.get_device_name(0))"
-python -m pip freeze > benchmark-environment.txt
+```sh
+rm -f /usr/lib/python3/dist-packages/typing_extensions.py
+rm -rf /usr/lib/python3/dist-packages/typing_extensions-*.dist-info
+rm -rf /usr/lib/python3/dist-packages/idna*
+rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click-*.dist-info
 ```
 
-The supplied `requirements.txt` uses minimum versions. `benchmark-environment.txt` records the resolved versions, including inherited packages. Preserve the exact cloud image too, because a package list does not capture drivers or system libraries.
+### 5. Install Python dependencies
 
-On subsequent instances, copy `benchmark-environment.txt` from the first instance. Create and activate the same environment.
-Install from that file:
-
-```bash
-python -m pip install -r benchmark-environment.txt
-python -m pip check
+```sh
+pip install -r requirements.txt --break-system-packages
+pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
-If a recorded package uses an unavailable local path, preserve its wheel or reuse an image snapshot before continuing. Do not silently substitute another version.
+The explicit `nnunetv2==2.8.1` pin is the reproducibility anchor. The benchmark result records the installed PyTorch and cuDNN versions.
 
-## 6. Set the benchmark directories
+### 6. Configure nnU-Net directories
 
-Run these commands from the repository root in the active Python environment:
-
-```bash
+```sh
 export nnUNet_raw="$HOME/aul-gpu-benchmark/raw"
 export nnUNet_preprocessed="$HOME/aul-gpu-benchmark/preprocessed"
 export nnUNet_results="$HOME/aul-gpu-benchmark/results"
-export CUDA_VISIBLE_DEVICES=0
-export nnUNet_n_proc_DA=8
-export nnUNet_compile=true
+export nnUNet_compile=false
+
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 ```
 
-The runner creates separate result directories under `logs/gpu_training_benchmark/`. It overrides `nnUNet_results` for each repeat. It leaves the milestone experiment results alone.
+`nnUNet_compile=false` avoids PyTorch compilation. Use this setting for every benchmark instance.
 
-These variables apply to the current shell. After reconnecting, activate the environment and repeat this step. Start the benchmark without another training process on the same GPU.
+### 7. Download AUL from Zenodo
 
-## 7. Download the source data
+Dataset: Annotated Ultrasound Liver images
 
-Complete steps 6 through 9 on the first instance only. On subsequent instances, restore the prepared archive described below and continue at step 10.
+DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)
 
-```bash
+```sh
 mkdir -p data/source
 cd data/source
+pip install zenodo-get --break-system-packages
 zenodo_get 7272660
-cat > aul-checksums.md5 <<'EOF'
-c37fef0cb2730236a79ef57e5315995e  Benign.zip
-63894a9e5654a69c3b94bda84071dfb0  Malignant.zip
-a7e16299b2cf12ca4a6c3468d2e4978f  Normal.zip
-EOF
-md5sum -c aul-checksums.md5
-```
-
-Make sure that all three files report `OK` before extraction:
-
-```bash
-unzip 'Benign.zip' -d AUL
-unzip 'Malignant.zip' -d AUL
-unzip 'Normal.zip' -d AUL
+md5sum *.zip
+unzip '*.zip' -d AUL
+rm -rf AUL/__MACOSX
 cd ../..
 ```
 
-The source is [AUL versioned record 7272660](https://doi.org/10.5281/zenodo.7272660). The expected archive hashes come from the supplied study conversion script.
+Make sure that the archive hashes match these values:
 
-## 8. Convert AUL
+| File | MD5 |
+|---|---|
+| `Benign.zip` | `c37fef0cb2730236a79ef57e5315995e` |
+| `Malignant.zip` | `63894a9e5654a69c3b94bda84071dfb0` |
+| `Normal.zip` | `a7e16299b2cf12ca4a6c3468d2e4978f` |
 
-Run the existing conversion script:
+### 8. Convert AUL to nnU-Net format
 
-```bash
+```sh
 python training/convert_aul.py \
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
 
-The script converts images to grayscale PNG and renders polygon annotations as masks. It uses seed 42 for its category-stratified development/test split. It does not establish patient-level independence. This hardware benchmark uses only the development partition.
+Images pass through without modification. The script renders segmentation labels from the annotated polygons.
 
-## 9. Make sure that counts match
+### 9. Make sure that the input counts match
 
-```bash
-python - <<'PY'
+```sh
+ls "$nnUNet_raw/Dataset001_AUL/imagesTr" | wc -l  # expect 625
+ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
+```
+
+### 10. Prepare the shared benchmark input
+
+```sh
+nnUNetv2_plan_and_preprocess -d 1 -c 2d --verify_dataset_integrity
+```
+
+This command creates the fixed 2D preprocessing output and `nnUNetPlans.json`. Run it only on this first instance.
+
+Archive the prepared data:
+
+```sh
+tar -czf "$HOME/aul-gpu-benchmark-input.tar.gz" \
+  -C "$HOME/aul-gpu-benchmark" preprocessed
+sha256sum "$HOME/aul-gpu-benchmark-input.tar.gz"
+```
+
+Save the archive and its hash. You copy this archive from your Mac to each later GPU instance.
+
+### 11. Run the benchmark
+
+```sh
+nnUNetv2_train 1 2d 0 -tr nnUNetTrainerBenchmark_5epochs
+```
+
+The command takes about three minutes. The first epoch includes startup work. nnU-Net reports `fastest_epoch` after all five epochs finish.
+
+### 12. Print copy-ready Markdown results
+
+Set the actual hourly price for this instance. Then run the command below.
+
+```sh
+export HOURLY_PRICE=1.10
+export CURRENCY=USD
+export BENCHMARK_JSON="$nnUNet_results/Dataset001_AUL/nnUNetTrainerBenchmark_5epochs__nnUNetPlans__2d/fold_0/benchmark_result.json"
+
+python - "$BENCHMARK_JSON" <<'PY'
+import json
 import os
-from pathlib import Path
-root = Path(os.environ['nnUNet_raw']) / 'Dataset001_AUL'
-assert len(list((root / 'imagesTr').glob('*_0000.png'))) == 625
-assert len(list((root / 'labelsTr').glob('*.png'))) == 625
-assert len(list((root / 'imagesTs').glob('*_0000.png'))) == 110
-print('Dataset counts match.')
+import subprocess
+import sys
+
+record = next(iter(json.load(open(sys.argv[1])).values()))
+seconds = float(record['fastest_epoch'])
+price = float(os.environ['HOURLY_PRICE'])
+vram_mib = subprocess.check_output(
+    ['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'],
+    text=True,
+).strip().splitlines()[0]
+vram_gib = int(vram_mib) // 1024
+cost = seconds * price / 3600
+hours = seconds * 1000 / 3600
+
+print(f'''## {record['gpu_name']}
+
+GPU: {record['gpu_name']}
+VRAM: {vram_gib} GiB
+Fastest epoch: {seconds:.4f} seconds
+PyTorch: {record['torch_version']}
+Hourly price: ${price:.3f}
+Currency: {os.environ['CURRENCY']}
+Cost per benchmark epoch: {seconds:.4f} × {price:.3f} ÷ 3600 = ${cost:.5f}
+Estimated 1,000-epoch training time: {hours:.2f} hours
+Estimated cost for 1,000 epochs: ${cost * 1000:.2f}''')
 PY
 ```
 
-## 10. Prepare the shared benchmark input
+Copy the printed Markdown into your benchmark record.
 
-Run preprocessing once:
+## Subsequent instance(s)
 
-```bash
-bash training/run_gpu_training_benchmark.sh --prepare-only
+Use this section for every later GPU instance. Do not download AUL, convert AUL, or run preprocessing again.
+
+### 1. Configure prompt and history
+
+```sh
+# Capture every subsequent command in ~/.bash_history
+export PROMPT_COMMAND='history -a'
+
+# More visible prompt with a timestamp, save each command to disk
+cat >> ~/.bashrc << 'PROMPTEOF'
+PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
+export HISTTIMEFORMAT='%F %T '
+export PROMPT_COMMAND='history -a'
+PROMPTEOF
+
+# Apply to current shell. New shells read ~/.bashrc.
+source ~/.bashrc
 ```
 
-The runner prepares only the 2D configuration. It retains an existing `splits_final.json`, or creates the standard five-fold split with seed 12345. A SHA-256 manifest is a list of file hashes. The runner saves this manifest and the conversion case mapping with the prepared dataset.
+### 2. Install system dependencies
 
-Archive the prepared data and resolved package versions:
-
-```bash
-cp benchmark-environment.txt "$HOME/aul-gpu-benchmark/"
-tar -czf "$HOME/aul-gpu-benchmark-input.tar.gz" \
-  -C "$HOME/aul-gpu-benchmark" preprocessed benchmark-environment.txt
-sha256sum "$HOME/aul-gpu-benchmark-input.tar.gz"
+```sh
+apt update
+apt install python3-pip unzip python-is-python3 tmux -y
 ```
 
-Save this archive and its hash before deleting the first instance. Copy the same archive to each subsequent instance. From your local machine, replace the SSH addresses and transfer it:
+### 3. Clone the repository
 
-```bash
-scp root@FIRST_SERVER:~/aul-gpu-benchmark-input.tar.gz .
-scp aul-gpu-benchmark-input.tar.gz root@NEXT_SERVER:~/
+```sh
+cd ~
+git clone https://github.com/roprice/liver-us-detection-baselines.git
+cd liver-us-detection-baselines
 ```
 
-On each subsequent instance, compare the archive hash with the first instance's recorded hash. Restore it into the directories from step 5:
+### 4. Resolve system Python package conflicts
 
-```bash
+```sh
+rm -f /usr/lib/python3/dist-packages/typing_extensions.py
+rm -rf /usr/lib/python3/dist-packages/typing_extensions-*.dist-info
+rm -rf /usr/lib/python3/dist-packages/idna*
+rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click-*.dist-info
+```
+
+### 5. Install Python dependencies
+
+```sh
+pip install -r requirements.txt --break-system-packages
+pip install "nnunetv2==2.8.1" idna --break-system-packages
+```
+
+### 6. Configure nnU-Net directories
+
+```sh
+export nnUNet_raw="$HOME/aul-gpu-benchmark/raw"
+export nnUNet_preprocessed="$HOME/aul-gpu-benchmark/preprocessed"
+export nnUNet_results="$HOME/aul-gpu-benchmark/results"
+export nnUNet_compile=false
+
+mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
+```
+
+### 7. Upload the prepared input archive
+
+Run this command on your Mac. Replace `NEXT_SERVER` with the IP address of this instance.
+
+```sh
+scp -i ~/.ssh/id_ed25519 ~/aul-gpu-benchmark-input.tar.gz root@NEXT_SERVER:~/
+```
+
+### 8. Restore the prepared input archive
+
+Run these commands on the GPU instance:
+
+```sh
 sha256sum "$HOME/aul-gpu-benchmark-input.tar.gz"
 tar -xzf "$HOME/aul-gpu-benchmark-input.tar.gz" -C "$HOME/aul-gpu-benchmark"
-cp "$HOME/aul-gpu-benchmark/benchmark-environment.txt" .
 ```
 
-Use the restored package file for step 4 on subsequent instances. Do not repeat conversion, planning, or preprocessing there. The training runner requires the saved manifest and refuses changed or missing files.
+Make sure that the archive hash matches the hash from the first instance. This archive supplies the same prepared AUL data and 2D nnU-Net plan.
 
-## 11. Run the GPU comparison
+### 9. Run the benchmark
 
-Start a persistent shell from the repository root:
-
-```bash
-tmux new -s gpu-benchmark
+```sh
+nnUNetv2_train 1 2d 0 -tr nnUNetTrainerBenchmark_5epochs
 ```
 
-Inside tmux, activate the environment and repeat step 5. Enter the actual rental details at the prompts:
+### 10. Print copy-ready Markdown results
 
-```bash
-source .venv-gpu-benchmark/bin/activate
-read -r -p 'Provider: ' PROVIDER
-read -r -p 'Instance type: ' INSTANCE_LABEL
-read -r -p 'Region: ' REGION
-read -r -p 'Exact cloud image identifier: ' IMAGE_REFERENCE
-read -r -p 'Hourly instance price, number only: ' HOURLY_PRICE
-read -r -p 'Currency, for example USD: ' CURRENCY
-read -r -p 'Rental category, spot or on-demand: ' RATE_TYPE
-export PROVIDER INSTANCE_LABEL REGION IMAGE_REFERENCE HOURLY_PRICE CURRENCY RATE_TYPE
-bash training/run_gpu_training_benchmark.sh
+Set the actual hourly price for this instance. Then run the command below.
+
+```sh
+export HOURLY_PRICE=1.453
+export CURRENCY=USD
+export BENCHMARK_JSON="$nnUNet_results/Dataset001_AUL/nnUNetTrainerBenchmark_5epochs__nnUNetPlans__2d/fold_0/benchmark_result.json"
+
+python - "$BENCHMARK_JSON" <<'PY'
+import json
+import os
+import subprocess
+import sys
+
+record = next(iter(json.load(open(sys.argv[1])).values()))
+seconds = float(record['fastest_epoch'])
+price = float(os.environ['HOURLY_PRICE'])
+vram_mib = subprocess.check_output(
+    ['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'],
+    text=True,
+).strip().splitlines()[0]
+vram_gib = int(vram_mib) // 1024
+cost = seconds * price / 3600
+hours = seconds * 1000 / 3600
+
+print(f'''## {record['gpu_name']}
+
+GPU: {record['gpu_name']}
+VRAM: {vram_gib} GiB
+Fastest epoch: {seconds:.4f} seconds
+PyTorch: {record['torch_version']}
+Hourly price: ${price:.3f}
+Currency: {os.environ['CURRENCY']}
+Cost per benchmark epoch: {seconds:.4f} × {price:.3f} ÷ 3600 = ${cost:.5f}
+Estimated 1,000-epoch training time: {hours:.2f} hours
+Estimated cost for 1,000 epochs: ${cost * 1000:.2f}''')
+PY
 ```
 
-The runner completes three repeats automatically. Detach with `Ctrl+b`, then `d`. Reattach with `tmux attach -t gpu-benchmark`.
-
-If the instance interrupts a run, retain its incomplete directory. Start a new invocation after recovery. The benchmark does not resume because its trainer saves no checkpoints. Record interruptions and their charges separately.
-
-## Read and preserve the results
-
-Each invocation creates a unique directory under `logs/gpu_training_benchmark/`. The runner prints its path at startup and completion.
-
-| File | Contents |
-|---|---|
-| `status.txt` | `COMPLETE` only after every repeat succeeds |
-| `summary.json` | Median, range, and estimated cost per epoch |
-| `repeats.csv` | Timing and estimated cost for each repeat |
-| `environment.json` | Rental details, hardware, software, plan dimensions, and Git revision |
-| `requirements-frozen.txt` | Installed package versions |
-| `nnUNetPlans.json` | Fixed network and batch configuration |
-| `splits_final.json` | Development folds |
-| `benchmark_manifest.json` | Prepared input hashes |
-| `repeat_N/console.log` | Complete output for that repeat |
-| `repeat_N/epoch_times.json` | Five epoch times, rounded by nnU-Net |
-| `repeat_N/results/.../benchmark_result.json` | Original nnU-Net result, including precise fastest time |
-
-The runner treats missing results, invalid timings, and fewer than five completed epochs as failures. Some upstream training errors return a successful process status, so the runner also inspects the result contents.
-
-Compare only completed invocations with matching input hashes, package versions, worker counts, and compilation configuration. Repeated processes can reuse compiler and filesystem caches. The process timings therefore do not represent identical cold starts.
-
-Calculate the selection metric as follows:
-
-```text
-Estimated cost per epoch =
-median fastest epoch seconds Ã— hourly instance price Ã· 3600
-```
-
-Report all three repeat measurements and their range. Prefer the lowest estimated cost among the tested eligible instances. If the differences overlap normal timing variation, collect more repeats before declaring a winner.
-
-The cost estimate excludes setup, preprocessing, idle rental time, interruptions, and separate charges. The elapsed process estimate includes startup and teardown for that process. Neither estimate is an invoice total. Report actual billed costs separately when available.
-
-Describe the winner as the lowest-cost tested instance for this workload and price date. The benchmark does not measure model footprint, inference latency, energy consumption, or final accuracy. Keep those measurements in the existing study experiments.
-
-Archive the evidence from the repository root:
-
-```bash
-tar -czf "$HOME/gpu-training-benchmark-evidence.tar.gz" \
-  logs/gpu_training_benchmark \
-  training/run_gpu_training_benchmark.sh \
-  training/convert_aul.py \
-  reproduce_study/run_gpu_training_benchmark.md \
-  requirements.txt benchmark-environment.txt
-```
-
-Download the archive from your local machine before terminating the instance:
-
-```bash
-scp root@SERVER:~/gpu-training-benchmark-evidence.tar.gz ./gpu-training-benchmark-INSTANCE.tar.gz
-```
-
-Replace `SERVER` and `INSTANCE` for each rental. Retain the prepared input archive once for the whole comparison. Retain the selected Git commit and cloud image identifier with the evidence.
+Copy the printed Markdown into your benchmark record. Repeat the subsequent-instance section for each remaining GPU.
 
 ## Upstream reference
 
-The [nnU-Net benchmark documentation](https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/benchmarking.md) describes the built-in trainer. This runner targets the implementation distributed in `nnunetv2==2.8.1`.
+The [nnU-Net benchmark documentation](https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/benchmarking.md) describes the built-in trainer. This guide targets `nnunetv2==2.8.1`.
