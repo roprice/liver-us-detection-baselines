@@ -27,23 +27,24 @@ On Verda.com's RTX PRO 6000 $0.95/hr spot pricing, roughly $10 and 11 GPU-hours 
 
 ## Server setup
 
-All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. Once you have provisioned the instance and connected to it by SSH, run the following commands.
+All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. 
+
+Once you have provisioned the instance and connected to it by SSH, run the following commands from a single shell. During the training in step 10, you can open a new shell if you wish to monitor progress; that won't be logged.
 
 ### 1. Configure prompt and history
 
 ```sh
-# Capture every command to ~/.bash_history immediately, starting now
+# Capture every subsequent command in ~/.bash_history 
 export PROMPT_COMMAND='history -a'
 
-# Burnt-orange prompt with a timestamp, plus history that timestamps
-# and flushes each command to disk immediately (persists for future shells).
+# More visible prompt with a timestamp, save each command to disk 
 cat >> ~/.bashrc << 'PROMPTEOF'
-PS1='\[\e[38;2;200;85;0m\]\u@\h:\w \t \[\e[0m\]\$ '
+PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
 export HISTTIMEFORMAT='%F %T '
 export PROMPT_COMMAND='history -a'
 PROMPTEOF
 
-# Apply the rest to the current shell now (new shells pick it up from ~/.bashrc)
+# Apply to current shell (new shells pick it up from ~/.bashrc)
 source ~/.bashrc
 ```
 
