@@ -1,10 +1,10 @@
 {
   "title": "Case-level centroid-based detection (deq=0.25) by saved milestone epoch",
-  "description": "Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 0.25x GT equivalent diameter, noise floor 100 px.",
-  "noise_floor_px": 100,
+  "description": "Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 0.25x GT equivalent diameter, noise floor 0.03% of image area.",
+  "noise_floor": "0.03% of image area",
   "centroid_definition": "predicted centroid within 0.25x GT equivalent diameter",
   "deq_factor": 0.25,
-  "dataset_snapshot_id": "c938647657d7",
+  "dataset_snapshot_id": "55ad5c853856",
   "seed": 42,
   "images": 625,
   "epochs": [
@@ -17,7 +17,7 @@
   ],
   "combined": {
     "Detection": [
-      0.6,
+      0.5894736842105263,
       0.6736842105263158,
       0.7157894736842105,
       0.7578947368421053,
@@ -35,7 +35,7 @@
   },
   "malignant": {
     "Detection": [
-      0.7384615384615385,
+      0.7230769230769231,
       0.8307692307692308,
       0.8307692307692308,
       0.9076923076923077,

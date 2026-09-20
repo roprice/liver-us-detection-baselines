@@ -39,7 +39,7 @@ from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
 
-MIN_PRED_AREA = 100  # noise floor (px^2); already applied when the dataset was built
+NOISE_FLOOR = "0.03% of image area"
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -182,8 +182,8 @@ def main():
     payload = {
         "title": "Case-level overlap-based detection (IoU>0.5) by saved milestone epoch",
         "description": ("Single preliminary milestones test run: seed 42, 625 images, "
-                        f"detection = {definition}, noise floor {MIN_PRED_AREA} px."),
-        "noise_floor_px": MIN_PRED_AREA,
+                        f"detection = {definition}, noise floor {NOISE_FLOOR}."),
+        "noise_floor": NOISE_FLOOR,
         "detection_definition": definition,
         "dataset_snapshot_id": data.snapshot_id,
         "seed": 42,
@@ -211,7 +211,7 @@ def main():
         "# Case-level overlap-based detection (IoU>0.5) by saved milestone epoch",
         "",
         f"Single preliminary milestones test run: seed 42, 625 images, "
-        f"detection = {definition}, noise floor {MIN_PRED_AREA} px.",
+        f"detection = {definition}, noise floor {NOISE_FLOOR}.",
         "",
         "A mass case is detected when the highest single-component IoU between "
         "a retained predicted component and the ground-truth mass exceeds the "

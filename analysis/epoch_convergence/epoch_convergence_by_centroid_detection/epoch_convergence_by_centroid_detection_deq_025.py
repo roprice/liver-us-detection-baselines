@@ -44,7 +44,7 @@ from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
 
-MIN_PRED_AREA = 100  # noise floor (px^2); already applied when the dataset was built
+NOISE_FLOOR = "0.03% of image area"
 
 DEQ_FACTOR = 0.25
 FLAG_FIELD = "centroid_detection_deq_025_flag"
@@ -187,8 +187,8 @@ def main():
         "title": f"Case-level centroid-based detection (deq={DEQ_FACTOR:g}) by saved milestone epoch",
         "description": ("Single preliminary milestones test run: seed 42, 625 images, "
                         f"centroid detection = predicted centroid within {DEQ_FACTOR:g}x GT "
-                        f"equivalent diameter, noise floor {MIN_PRED_AREA} px."),
-        "noise_floor_px": MIN_PRED_AREA,
+                        f"equivalent diameter, noise floor {NOISE_FLOOR}."),
+        "noise_floor": NOISE_FLOOR,
         "centroid_definition": f"predicted centroid within {DEQ_FACTOR:g}x GT equivalent diameter",
         "deq_factor": DEQ_FACTOR,
         "dataset_snapshot_id": data.snapshot_id,
@@ -218,7 +218,7 @@ def main():
         "",
         f"Single preliminary milestones test run: seed 42, 625 images, "
         f"centroid detection = predicted centroid within {DEQ_FACTOR:g}x GT "
-        f"equivalent diameter, noise floor {MIN_PRED_AREA} px.",
+        f"equivalent diameter, noise floor {NOISE_FLOOR}.",
         "",
         "A mass case is detected when the closest retained predicted centroid "
         f"lies within {DEQ_FACTOR:g}x the ground-truth mass's equivalent circular "

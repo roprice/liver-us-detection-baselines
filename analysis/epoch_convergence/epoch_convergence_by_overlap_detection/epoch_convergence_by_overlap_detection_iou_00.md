@@ -1,6 +1,6 @@
 # Case-level overlap-based detection (IoU>0) by saved milestone epoch
 
-Single preliminary milestones test run: seed 42, 625 images, detection = overlap (IoU > 0), noise floor 100 px.
+Single preliminary milestones test run: seed 42, 625 images, detection = IoU > 0, noise floor 0.03% of image area.
 
 Each table reports case-level false positives computed on normal cases only. A normal case with any prediction is a false alarm.
 

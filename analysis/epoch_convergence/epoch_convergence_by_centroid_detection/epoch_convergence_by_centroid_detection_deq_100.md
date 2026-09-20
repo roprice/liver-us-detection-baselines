@@ -1,6 +1,6 @@
 # Case-level centroid-based detection (deq=1) by saved milestone epoch
 
-Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 1x GT equivalent diameter, noise floor 100 px.
+Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 1x GT equivalent diameter, noise floor 0.03% of image area.
 
 A mass case is detected when the closest retained predicted centroid lies within 1x the ground-truth mass's equivalent circular diameter.
 

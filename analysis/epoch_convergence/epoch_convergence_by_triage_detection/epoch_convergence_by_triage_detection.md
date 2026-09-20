@@ -1,6 +1,6 @@
 # Case-level triage-based detection by saved milestone epoch
 
-Single preliminary milestones test run: seed 42, 625 images, triage = any retained mass (no overlap required), noise floor 100 px.
+Single preliminary milestones test run: seed 42, 625 images, triage = any retained mass (no overlap required), noise floor 0.03% of image area.
 
 A mass-present case is detected if the model predicts any retained mass anywhere on the image.
 

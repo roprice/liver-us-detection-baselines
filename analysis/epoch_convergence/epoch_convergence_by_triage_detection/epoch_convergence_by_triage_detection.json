@@ -1,9 +1,9 @@
 {
   "title": "Case-level triage-based detection by saved milestone epoch",
-  "description": "Single preliminary milestones test run: seed 42, 625 images, triage = any retained mass (no overlap required), noise floor 100 px.",
-  "noise_floor_px": 100,
+  "description": "Single preliminary milestones test run: seed 42, 625 images, triage = any retained mass (no overlap required), noise floor 0.03% of image area.",
+  "noise_floor": "0.03% of image area",
   "triage_definition": "any retained mass (no overlap required)",
-  "dataset_snapshot_id": "5db335362cb6",
+  "dataset_snapshot_id": "55ad5c853856",
   "seed": 42,
   "images": 625,
   "epochs": [
