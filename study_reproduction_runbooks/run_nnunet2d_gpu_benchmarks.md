@@ -98,6 +98,9 @@ mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
 `nnUNet_compile=false` avoids PyTorch compilation. Use this setting for every benchmark instance.
 
+If you lose your connection, re-run this step as these won't persist.
+
+
 ### 7. Download AUL from Zenodo
 
 Dataset: Annotated Ultrasound Liver images
@@ -212,22 +215,18 @@ Copy the printed Markdown into your benchmark record.
 
 Use this section for every later GPU instance. Do not download AUL, convert AUL, or run preprocessing again.
 
-### 1. Configure prompt and history
+### 1. Configure prompt (optional)
 
 ```sh
-# Capture every subsequent command in ~/.bash_history
-export PROMPT_COMMAND='history -a'
 
-# More visible prompt with a timestamp, save each command to disk
+# More visible prompt with a timestamp so no manual steps are missed
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
-export HISTTIMEFORMAT='%F %T '
-export PROMPT_COMMAND='history -a'
 PROMPTEOF
-
-# Apply to current shell. New shells read ~/.bashrc.
 source ~/.bashrc
 ```
+
+Optionally run this to help you keep track of what step you're on
 
 ### 2. Install system dependencies
 
