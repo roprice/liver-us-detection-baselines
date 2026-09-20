@@ -2,8 +2,8 @@
   "title": "Case-level overlap-based detection (IoU>=0.2) by saved milestone epoch",
   "description": "Single preliminary milestones test run: seed 42, 625 images, detection = IoU >= 0.2, noise floor 100 px.",
   "noise_floor_px": 100,
-  "iou_threshold": 0.2,
   "detection_definition": "IoU >= 0.2",
+  "dataset_snapshot_id": "6f3f562da001",
   "seed": 42,
   "images": 625,
   "epochs": [

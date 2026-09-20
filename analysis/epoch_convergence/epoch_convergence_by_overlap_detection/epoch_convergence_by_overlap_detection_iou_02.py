@@ -8,8 +8,8 @@ all masses combined and separately for malignant and benign masses.
 Per mass grouping, reports case-level (patient triage) recall and
 false-positive rate over Normal cases.
 
-Overlap detection matching (noise floor 100 px) is defined locally so the script
-is self-contained.
+Reads the canonical predictions dataset (analysis/predictions_dataset) rather
+than the raw masks; overlap_detection_iou_02_flag and pathology come from there.
 
 This is a single-seed run (seed 42, 625 images), so there are no error bars.
 
@@ -19,6 +19,7 @@ Run from project root:
 
 import json
 import os
+import sys
 
 import numpy as np
 import matplotlib
@@ -26,24 +27,19 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from pathlib import Path
-from PIL import Image
-from skimage.measure import label
 
 # Script lives at analysis/epoch_convergence/epoch_convergence_by_overlap_detection/.
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# --- Detection config ---
-LABELS_TS = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/labelsTs"
-CASE_MAPPING = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/case_mapping.json"
+# Make the project root importable so the predictions-dataset loader can be
+# used regardless of the current working directory.
+sys.path.insert(0, str(PROJECT_ROOT))
+from analysis.predictions_dataset.load_predictions_dataset import (
+    load_predictions_dataset,
+)
 
-MASS_VALUE = 2
-# Overlap detection: IoU >= 0.2 (requires modest overlap).
-IOU_THRESHOLD = 0.2
-# Fixed noise floor: 100 px^2 = ~10x10 px = ~1-2 mm (images cover ~12-20 cm
-# at 1024 px, so ~0.12-0.20 mm/px). The smallest annotated mass is 398 px^2,
-# so 100 px only removes speckle, never a true lesion.
-MIN_PRED_AREA = 100
+MIN_PRED_AREA = 100  # noise floor (px^2); already applied when the dataset was built
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -67,7 +63,6 @@ plt.rcParams.update({
     'axes.spines.right': True,
 })
 
-PRED_ROOT = PROJECT_ROOT / "predictions/preliminary_milestones_test/seed42"
 OUT_DIR = SCRIPT_DIR
 
 # Folder name -> epoch number.
@@ -95,113 +90,60 @@ PLOT_SERIES = [
 ]
 
 
-def get_class_map():
-    """Build filename -> class mapping from case_mapping.json (test split)."""
-    if not CASE_MAPPING.exists():
-        print(f"WARNING: {CASE_MAPPING} not found")
-        return {}
-    with open(CASE_MAPPING) as f:
-        mapping = json.load(f)
-    return {e["case_name"] + ".png": e["category"].lower()
-            for e in mapping if e["split"] == "test"}
+def evaluate_epoch(rows, positive_class="malignant"):
+    """Run overlap (IoU >= 0.2) eval for one checkpoint, return recall and FP rate.
 
-
-def evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=0.0,
-                   positive_class="malignant"):
-    """Run detection eval for one checkpoint, return case recall and FP rate."""
-    case_tp = case_fn = 0
-    case_fp = 0
+    A mass-present case is detected when overlap_detection_iou_02_flag is True;
+    a Normal case with any retained prediction is a false alarm. All facts come
+    from the loaded predictions dataset, not the raw masks.
+    """
+    tp = fn = 0
+    fp = 0
     n_normal = 0
 
-    for fname in test_files:
-        cls = class_map.get(fname, "unknown")
-        pred_path = pred_dir / fname
-        if not pred_path.exists():
-            continue
-        pred = np.array(Image.open(pred_path))
-        gt = np.array(Image.open(LABELS_TS / fname))
-        gt_mass = (gt == MASS_VALUE).astype(np.uint8)
-        pred_mass = (pred == MASS_VALUE).astype(np.uint8)
+    for row in rows:
+        if positive_class == "combined":
+            is_positive = row.pathology in ("malignant", "benign")
+        else:
+            is_positive = row.pathology == positive_class
 
-        # Filter predicted components (speckle).
-        pred_labeled = label(pred_mass)
-        n_pred = pred_labeled.max()
-        keep = set()
-        for p in range(1, n_pred + 1):
-            if (pred_labeled == p).sum() >= MIN_PRED_AREA:
-                keep.add(p)
-        filtered_pred = np.zeros_like(pred_mass)
-        for p in keep:
-            filtered_pred[pred_labeled == p] = 1
-
-        is_positive = (
-            cls in ("malignant", "benign")
-            if positive_class == "combined"
-            else cls == positive_class
-        )
         if is_positive:
-            # Case-level: any retained prediction overlapping the GT mass counts
-            # as detected. With iou_threshold == 0.0 this is overlap (IoU > 0).
-            n_gt = label(gt_mass).max()
-            detected = False
-            if n_gt > 0 and filtered_pred.sum() > 0:
-                g = label(gt_mass)
-                for gi in range(1, n_gt + 1):
-                    gr = (g == gi)
-                    inter = np.logical_and(gr, filtered_pred).sum()
-                    union = np.logical_or(gr, filtered_pred).sum()
-                    iou = inter / union if union > 0 else 0.0
-                    meets = (iou > 0.0) if iou_threshold == 0.0 else (iou >= iou_threshold)
-                    if meets:
-                        detected = True
-                        break
-            if detected:
-                case_tp += 1
+            if row.overlap_detection_iou_02_flag:
+                tp += 1
             else:
-                case_fn += 1
-        elif cls == "normal":
+                fn += 1
+        elif row.pathology == "normal":
             n_normal += 1
-            # Any retained prediction on a mass-free image is a false alarm.
-            if filtered_pred.sum() > 0:
-                case_fp += 1
+            if row.normal_false_positive:
+                fp += 1
 
-    case_recall = case_tp / (case_tp + case_fn) if (case_tp + case_fn) > 0 else 0.0
-    case_fp_rate = case_fp / n_normal if n_normal > 0 else 0.0
+    case_recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    case_fp_rate = fp / n_normal if n_normal > 0 else 0.0
 
     return case_recall, case_fp_rate
 
 
 def main():
-    iou_threshold = IOU_THRESHOLD
-    definition = ("overlap (IoU > 0)" if iou_threshold == 0.0
-                  else f"IoU >= {iou_threshold:g}")
+    definition = "IoU >= 0.2"
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    class_map = get_class_map()
-    if not LABELS_TS.exists():
-        print(f"ERROR: {LABELS_TS} not found")
-        return
-
-    test_files = sorted(f for f in os.listdir(LABELS_TS) if f.endswith(".png"))
-    print(f"Test set: {len(test_files)} files, detection = {definition}, "
-          f"noise floor {MIN_PRED_AREA} px")
+    data = load_predictions_dataset()
+    print(f"Loaded predictions dataset: {data.snapshot_id}, "
+          f"{len(data.rows)} rows")
 
     epochs = []
     metrics = {key: [] for key in METRICS}
     benign_metrics = {key: [] for key in METRICS}
     combined_metrics = {key: [] for key in METRICS}
     for folder_name, epoch in EPOCH_DIRS:
-        pred_dir = PRED_ROOT / folder_name
-        if not pred_dir.exists():
-            print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
+        rows = [r for r in data.rows if r.configuration_id == folder_name]
+        if not rows:
+            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
             continue
-        crec, cfp = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
-                                   positive_class="malignant")
-        rb_rec, rb_fp = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
-                                       positive_class="benign")
-        rc_rec, rc_fp = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
-                                       positive_class="combined")
+        crec, cfp = evaluate_epoch(rows, positive_class="malignant")
+        rb_rec, rb_fp = evaluate_epoch(rows, positive_class="benign")
+        rc_rec, rc_fp = evaluate_epoch(rows, positive_class="combined")
         epochs.append(epoch)
         metrics["case_recall"].append(crec)
         metrics["case_fp_rate"].append(cfp)
@@ -242,8 +184,8 @@ def main():
         "description": ("Single preliminary milestones test run: seed 42, 625 images, "
                         f"detection = {definition}, noise floor {MIN_PRED_AREA} px."),
         "noise_floor_px": MIN_PRED_AREA,
-        "iou_threshold": iou_threshold,
         "detection_definition": definition,
+        "dataset_snapshot_id": data.snapshot_id,
         "seed": 42,
         "images": 625,
         "epochs": epochs,
