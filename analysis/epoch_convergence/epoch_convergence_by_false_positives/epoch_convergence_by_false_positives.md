@@ -1,18 +1,18 @@
 # False positives vs. epoch
 
-Single preliminary milestones run: seed 42, 625 images, joint-selected checkpoints.
+Preliminary milestones run: seeds 42/43/44, 625 images each.
 
 A false positive is a Normal (mass-free) case the model flags as containing a mass. Every image is one patient with at most one mass, so this is a single case-level signal.
 
-No error bars (single seed).
+Values are mean ± standard deviation across the three seeds.
 
 Normal test cases: 15.
 
-| Epoch | FP rate | False positives | Seed 42 |
-|------:|--------:|----------------:|--------:|
-| 50 | 0.0000 | 0 | 0/15 |
-| 100 | 0.0000 | 0 | 0/15 |
-| 150 | 0.1333 | 2 | 2/15 |
-| 300 | 0.2000 | 3 | 3/15 |
-| 500 | 0.1333 | 2 | 2/15 |
-| 750 | 0.0667 | 1 | 1/15 |
+| Epoch | FP rate | False positives |
+|------:|--------:|----------------:|
+| 50 | 0.0889 ± 0.1018 | 1.33 ± 1.53 |
+| 100 | 0.0444 ± 0.0385 | 0.67 ± 0.58 |
+| 150 | 0.1333 ± 0.0000 | 2.00 ± 0.00 |
+| 300 | 0.1333 ± 0.0667 | 2.00 ± 1.00 |
+| 500 | 0.1111 ± 0.0385 | 1.67 ± 0.58 |
+| 750 | 0.0444 ± 0.0385 | 0.67 ± 0.58 |

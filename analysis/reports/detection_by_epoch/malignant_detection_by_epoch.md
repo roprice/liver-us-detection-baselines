@@ -1,14 +1,14 @@
 # Malignant detection vs. epoch
 
-Single preliminary milestones run: seed 42, 625 images, joint-selected checkpoints. No error bars (single seed).
+Preliminary milestones run: seeds 42/43/44, 625 images each.
 
-Values are malignant case-level recall (fraction of malignant cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers.
+Values are malignant case-level recall (fraction of malignant cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers. Mean ± standard deviation across seeds.
 
 | Epoch | Triage | Overlap (IoU>0.0) | Overlap (IoU>0.2) | Overlap (IoU>0.5) | Centroid (1.0xD) | Centroid (0.5xD) | Centroid (0.25xD) |
 |------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
-| 50 | 0.9077 | 0.8923 | 0.8000 | 0.6308 | 0.8923 | 0.8615 | 0.7231 |
-| 100 | 0.9385 | 0.9231 | 0.9077 | 0.7385 | 0.9231 | 0.9077 | 0.8308 |
-| 150 | 0.9846 | 0.9692 | 0.9231 | 0.7538 | 0.9692 | 0.9385 | 0.8308 |
-| 300 | 0.9846 | 0.9692 | 0.9538 | 0.8000 | 0.9692 | 0.9538 | 0.9077 |
-| 500 | 0.9538 | 0.9231 | 0.8923 | 0.7692 | 0.9231 | 0.9077 | 0.8154 |
-| 750 | 0.9846 | 0.9692 | 0.9385 | 0.8769 | 0.9692 | 0.9538 | 0.8923 |
+| 50 | 0.9231 ± 0.0266 | 0.9026 ± 0.0320 | 0.8462 ± 0.0671 | 0.6974 ± 0.0582 | 0.9026 ± 0.0320 | 0.8667 ± 0.0540 | 0.7744 ± 0.0470 |
+| 100 | 0.9385 ± 0.0154 | 0.9231 ± 0.0154 | 0.8872 ± 0.0235 | 0.7385 ± 0.0308 | 0.9231 ± 0.0154 | 0.9026 ± 0.0387 | 0.8256 ± 0.0387 |
+| 150 | 0.9590 ± 0.0320 | 0.9436 ± 0.0320 | 0.9077 ± 0.0154 | 0.7590 ± 0.0387 | 0.9436 ± 0.0320 | 0.9333 ± 0.0235 | 0.8462 ± 0.0154 |
+| 300 | 0.9590 ± 0.0320 | 0.9282 ± 0.0582 | 0.9077 ± 0.0671 | 0.7949 ± 0.0387 | 0.9282 ± 0.0582 | 0.9077 ± 0.0671 | 0.8615 ± 0.0555 |
+| 500 | 0.9590 ± 0.0089 | 0.9385 ± 0.0154 | 0.9026 ± 0.0470 | 0.7846 ± 0.0266 | 0.9385 ± 0.0154 | 0.9179 ± 0.0178 | 0.8564 ± 0.0355 |
+| 750 | 0.9692 ± 0.0154 | 0.9538 ± 0.0266 | 0.9231 ± 0.0154 | 0.8205 ± 0.0495 | 0.9538 ± 0.0266 | 0.9282 ± 0.0235 | 0.8564 ± 0.0320 |

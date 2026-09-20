@@ -1,42 +1,42 @@
 # Case-level centroid-based detection (deq=0.5) by saved milestone epoch
 
-Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 0.5x GT equivalent diameter, noise floor 0.03% of image area.
+Three preliminary milestones test runs: seeds 42/43/44, 625 images each, centroid detection = predicted centroid within 0.5x GT equivalent diameter, noise floor 0.03% of image area.
 
 A mass case is detected when the closest retained predicted centroid lies within 0.5x the ground-truth mass's equivalent circular diameter.
 
 Each table reports case-level false positives computed on normal cases only. A normal case with any prediction is a false alarm.
 
-No error bars (single seed).
+Values are mean ± standard deviation across the three seeds.
 
 ## All masses
 
 | Epoch | Detection | Normal cases FP rate |
 |------:|----------:|-------------------:|
-| 50 | 0.695 | 0.000 |
-| 100 | 0.737 | 0.000 |
-| 150 | 0.811 | 0.133 |
-| 300 | 0.821 | 0.200 |
-| 500 | 0.768 | 0.133 |
-| 750 | 0.832 | 0.067 |
+| 50 | 0.719 ± 0.043 | 0.089 ± 0.102 |
+| 100 | 0.754 ± 0.030 | 0.044 ± 0.038 |
+| 150 | 0.793 ± 0.030 | 0.133 ± 0.000 |
+| 300 | 0.793 ± 0.049 | 0.133 ± 0.067 |
+| 500 | 0.807 ± 0.037 | 0.111 ± 0.038 |
+| 750 | 0.818 ± 0.016 | 0.044 ± 0.038 |
 
 ## Malignant masses
 
 | Epoch | Detection | Normal cases FP rate |
 |------:|----------:|-------------------:|
-| 50 | 0.862 | 0.000 |
-| 100 | 0.908 | 0.000 |
-| 150 | 0.938 | 0.133 |
-| 300 | 0.954 | 0.200 |
-| 500 | 0.908 | 0.133 |
-| 750 | 0.954 | 0.067 |
+| 50 | 0.867 ± 0.054 | 0.089 ± 0.102 |
+| 100 | 0.903 ± 0.039 | 0.044 ± 0.038 |
+| 150 | 0.933 ± 0.024 | 0.133 ± 0.000 |
+| 300 | 0.908 ± 0.067 | 0.133 ± 0.067 |
+| 500 | 0.918 ± 0.018 | 0.111 ± 0.038 |
+| 750 | 0.928 ± 0.024 | 0.044 ± 0.038 |
 
 ## Benign masses
 
 | Epoch | Detection | Normal cases FP rate |
 |------:|----------:|-------------------:|
-| 50 | 0.333 | 0.000 |
-| 100 | 0.367 | 0.000 |
-| 150 | 0.533 | 0.133 |
-| 300 | 0.533 | 0.200 |
-| 500 | 0.467 | 0.133 |
-| 750 | 0.567 | 0.067 |
+| 50 | 0.400 ± 0.058 | 0.089 ± 0.102 |
+| 100 | 0.433 ± 0.058 | 0.044 ± 0.038 |
+| 150 | 0.489 ± 0.051 | 0.133 ± 0.000 |
+| 300 | 0.544 ± 0.019 | 0.133 ± 0.067 |
+| 500 | 0.567 ± 0.088 | 0.111 ± 0.038 |
+| 750 | 0.578 ± 0.019 | 0.044 ± 0.038 |

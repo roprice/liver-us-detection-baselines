@@ -1,4 +1,4 @@
-"""Triage detection vs. epoch for the preliminary milestones run (seed 42, 625 images).
+"""Triage detection vs. epoch for the preliminary milestones run (3 seeds, 625 images each).
 
 Triage is the most permissive detection view: a case is "detected" if the model
 predicts any retained mass anywhere on the image, whether or not it overlaps the
@@ -9,16 +9,17 @@ triage is a single case-level binary:
   - Normal case (no mass): flagged -> false alarm, not flagged -> correct.
 
 Because there is no overlap requirement, an IoU threshold does not apply. The
-only filter is the 100 px noise floor, already baked into the triage_detection_flag column
-of the predictions dataset.
+only filter is the relative noise floor, already baked into the
+triage_detection_flag column of the predictions dataset.
 
 Reports, per milestone checkpoint and per mass grouping (combined / malignant /
-benign): case-level recall and false-positive rate over Normal cases.
+benign): case-level recall and false-positive rate over Normal cases, averaged
+across the three seeds with standard deviation.
 
 Reads the canonical predictions dataset (analysis/predictions_dataset) rather
 than the raw masks; triage_detection_flag and pathology come from there.
 
-Single-seed run (seed 42, 625 images); no error bars.
+Three seeds (42/43/44), 625 images each; error bars are the across-seed std.
 
 Run from project root:
     python analysis/epoch_convergence/epoch_convergence_by_triage_detection/epoch_convergence_by_triage_detection.py
@@ -47,6 +48,9 @@ from analysis.predictions_dataset.load_predictions_dataset import (
 
 NOISE_FLOOR = "0.03% of image area"
 
+SEEDS = [42, 43, 44]
+EPOCHS = [50, 100, 150, 300, 500, 750]
+
 plt.rcParams.update({
     'font.family': 'sans-serif',
     'font.sans-serif': ['Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
@@ -71,17 +75,6 @@ plt.rcParams.update({
 
 OUT_DIR = SCRIPT_DIR
 
-# Milestone checkpoints to report (epoch50..epoch750), excluding the snapshot
-# best/best_mass/final checkpoints which have no fixed epoch.
-EPOCH_DIRS = [
-    ("predictions_milestones_625images_seed42_epoch50", 50),
-    ("predictions_milestones_625images_seed42_epoch100", 100),
-    ("predictions_milestones_625images_seed42_epoch150", 150),
-    ("predictions_milestones_625images_seed42_epoch300", 300),
-    ("predictions_milestones_625images_seed42_epoch500", 500),
-    ("predictions_milestones_625images_seed42_epoch750", 750),
-]
-
 # Metric key -> (legend label, color).
 METRICS = {
     "case_recall":      ("Case recall",      "#f5c0aa"),
@@ -98,9 +91,9 @@ PLOT_SERIES = [
 def evaluate_triage(rows, positive_class):
     """Return (tp, fp, fn, n_normal) at case level for triage detection.
 
-    A mass-present case is detected when triage_flag is True; a Normal case
-    with triage_flag True is a false alarm. All facts come from the loaded
-    predictions dataset, not the raw masks.
+    A mass-present case is detected when triage_detection_flag is True; a Normal
+    case with triage_detection_flag True is a false alarm. All facts come from
+    the loaded predictions dataset, not the raw masks.
     """
     tp = fn = 0
     fp = 0
@@ -136,6 +129,40 @@ def evaluate_epoch(rows, positive_class="malignant"):
     return crec, cfp_rate
 
 
+def summarize_epochs(data, positive_class):
+    """Return {metric: (means, stds)} across seeds, per epoch."""
+    means = {key: [] for key in METRICS}
+    stds = {key: [] for key in METRICS}
+    for epoch in EPOCHS:
+        recalls = []
+        fp_rates = []
+        for seed in SEEDS:
+            folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
+            rows = [r for r in data.rows if r.configuration_id == folder]
+            if not rows:
+                print(f"WARNING: no rows for {folder}")
+                continue
+            rec, fp = evaluate_epoch(rows, positive_class)
+            recalls.append(rec)
+            fp_rates.append(fp)
+        means["case_recall"].append(float(np.nanmean(recalls)) if recalls else float('nan'))
+        stds["case_recall"].append(float(np.nanstd(recalls, ddof=1)) if recalls else float('nan'))
+        means["case_fp_rate"].append(float(np.nanmean(fp_rates)) if fp_rates else float('nan'))
+        stds["case_fp_rate"].append(float(np.nanstd(fp_rates, ddof=1)) if fp_rates else float('nan'))
+    return means, stds
+
+
+def metric_payload(means, stds):
+    return {
+        "Detection": {"mean": means["case_recall"], "std": stds["case_recall"]},
+        "False positive rate": {"mean": means["case_fp_rate"], "std": stds["case_fp_rate"]},
+    }
+
+
+def fmt(mean, std):
+    return f"{mean:.3f} ± {std:.3f}"
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -143,67 +170,45 @@ def main():
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
           f"{len(data.rows)} rows")
 
-    epochs = []
-    metrics = {key: [] for key in METRICS}
-    benign_metrics = {key: [] for key in METRICS}
-    combined_metrics = {key: [] for key in METRICS}
-    for folder_name, epoch in EPOCH_DIRS:
-        rows = [r for r in data.rows if r.configuration_id == folder_name]
-        if not rows:
-            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
-            continue
-        crec, cfp = evaluate_epoch(rows, positive_class="malignant")
-        rb_rec, rb_fp = evaluate_epoch(rows, positive_class="benign")
-        rc_rec, rc_fp = evaluate_epoch(rows, positive_class="combined")
-        epochs.append(epoch)
-        metrics["case_recall"].append(crec)
-        metrics["case_fp_rate"].append(cfp)
-        benign_metrics["case_recall"].append(rb_rec)
-        benign_metrics["case_fp_rate"].append(rb_fp)
-        combined_metrics["case_recall"].append(rc_rec)
-        combined_metrics["case_fp_rate"].append(rc_fp)
+    combined = summarize_epochs(data, "combined")
+    malignant = summarize_epochs(data, "malignant")
+    benign = summarize_epochs(data, "benign")
 
-    if not epochs:
-        print("No per-epoch predictions found, exiting")
-        return
+    stats = {
+        "combined": combined,
+        "malignant": malignant,
+        "benign": benign,
+    }
+    epochs = EPOCHS
 
     # --- Terminal tables ---
-    header = "Epoch | CRec | CFP"
-    sep = "------|------|-----"
-    for title, table in [("All masses", combined_metrics),
-                         ("Malignant", metrics),
-                         ("Benign", benign_metrics)]:
-        print(f"\n{title} — {header}")
-        print(f"{'':>7}  {sep}")
+    for title, group in [("All masses", "combined"),
+                         ("Malignant", "malignant"),
+                         ("Benign", "benign")]:
+        means, stds = stats[group]
+        print(f"\n{title} — Epoch | CRec | CFP")
+        print(f"{'':>7}  ------|------|-----")
         for i, ep in enumerate(epochs):
-            print(f"{ep:>5} | {table['case_recall'][i]:.3f} | "
-                  f"{table['case_fp_rate'][i]:.3f}")
+            print(f"{ep:>5} | {fmt(means['case_recall'][i], stds['case_recall'][i])} | "
+                  f"{fmt(means['case_fp_rate'][i], stds['case_fp_rate'][i])}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_triage_detection.json"
     payload = {
         "title": "Case-level triage-based detection by saved milestone epoch",
-        "description": ("Single preliminary milestones test run: seed 42, 625 images, "
-                        "triage = any retained mass (no overlap required), "
-                        f"noise floor {NOISE_FLOOR}."),
+        "description": ("Three preliminary milestones test runs: seeds 42/43/44, "
+                        "625 images each, triage = any retained mass (no overlap "
+                        f"required), noise floor {NOISE_FLOOR}. Values are mean ± std "
+                        "across seeds."),
         "noise_floor": NOISE_FLOOR,
         "triage_definition": "any retained mass (no overlap required)",
         "dataset_snapshot_id": data.snapshot_id,
-        "seed": 42,
+        "seeds": SEEDS,
         "images": 625,
         "epochs": epochs,
-        "combined": {
-            "Detection": combined_metrics["case_recall"],
-            "False positive rate": combined_metrics["case_fp_rate"],
-        },
-        "malignant": {
-            "Detection": metrics["case_recall"],
-            "False positive rate": metrics["case_fp_rate"],
-        },
-        "benign": {
-            "Detection": benign_metrics["case_recall"],
-            "False positive rate": benign_metrics["case_fp_rate"],
-        },
+        "combined": metric_payload(combined[0], combined[1]),
+        "malignant": metric_payload(malignant[0], malignant[1]),
+        "benign": metric_payload(benign[0], benign[1]),
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -213,9 +218,8 @@ def main():
     md_lines = [
         "# Case-level triage-based detection by saved milestone epoch",
         "",
-        f"Single preliminary milestones test run: seed 42, 625 images, "
-        f"triage = any retained mass (no overlap required), noise floor "
-        f"{NOISE_FLOOR}.",
+        f"Three preliminary milestones test runs: seeds 42/43/44, 625 images each, "
+        f"triage = any retained mass (no overlap required), noise floor {NOISE_FLOOR}.",
         "",
         "A mass-present case is detected if the model predicts any retained mass "
         "anywhere on the image.",
@@ -223,21 +227,22 @@ def main():
         "Each table reports case-level false positives computed on normal cases "
         "only. A normal case with any prediction is a false alarm.",
         "",
-        "No error bars (single seed).",
+        "Values are mean ± standard deviation across the three seeds.",
         "",
     ]
 
-    for title, table in [("All masses", combined_metrics),
-                         ("Malignant masses", metrics),
-                         ("Benign masses", benign_metrics)]:
+    for title, group in [("All masses", "combined"),
+                         ("Malignant masses", "malignant"),
+                         ("Benign masses", "benign")]:
+        means, stds = stats[group]
         md_lines.append(f"## {title}")
         md_lines.append("")
         md_lines.append("| Epoch | Detection | Normal cases FP rate |")
         md_lines.append("|------:|----------:|-------------------:|")
         for i, ep in enumerate(epochs):
             md_lines.append(
-                f"| {ep} | {table['case_recall'][i]:.3f} | "
-                f"{table['case_fp_rate'][i]:.3f} |"
+                f"| {ep} | {fmt(means['case_recall'][i], stds['case_recall'][i])} | "
+                f"{fmt(means['case_fp_rate'][i], stds['case_fp_rate'][i])} |"
             )
         md_lines.append("")
     md_path = OUT_DIR / "epoch_convergence_by_triage_detection.md"
@@ -248,14 +253,10 @@ def main():
     # --- Plot ---
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for src, key, label, color in PLOT_SERIES:
-        data = {
-            "combined": combined_metrics,
-            "malignant": metrics,
-            "benign": benign_metrics,
-        }[src][key]
-        ax.plot(epochs, data, '-o', color=color, label=label,
-                markersize=7, linewidth=1.5, markeredgecolor='white',
-                markeredgewidth=1.5, zorder=3)
+        means, stds = stats[src]
+        ax.errorbar(epochs, means[key], yerr=stds[key], fmt='-o', color=color,
+                    label=label, markersize=7, linewidth=1.5, capsize=3,
+                    markeredgecolor='white', markeredgewidth=1.5, zorder=3)
 
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Triage recall')

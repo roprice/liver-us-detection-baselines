@@ -1,17 +1,18 @@
 """Overlap detection quality vs. epoch for the preliminary milestones run
-(seed 42, 625 images) at IoU > 0.5.
+(3 seeds, 625 images each) at IoU > 0.5.
 
 Evaluates the six milestone checkpoints (50/100/150/300/500/750) on mass
 *detection* metrics using overlap-based matching with IoU > 0.5, reported for
-all masses combined and separately for malignant and benign masses.
+all masses combined and separately for malignant and benign masses, averaged
+across the three seeds with standard deviation.
 
-Per mass grouping, reports case-level (patient triage) recall and
-false-positive rate over Normal cases.
+Per mass grouping, reports case-level recall and false-positive rate over Normal
+cases.
 
 Reads the canonical predictions dataset (analysis/predictions_dataset) rather
 than the raw masks; overlap_detection_iou_05_flag and pathology come from there.
 
-This is a single-seed run (seed 42, 625 images), so there are no error bars.
+Three seeds (42/43/44), 625 images each; error bars are the across-seed std.
 
 Run from project root:
     python analysis/epoch_convergence/epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_05.py
@@ -41,6 +42,9 @@ from analysis.predictions_dataset.load_predictions_dataset import (
 
 NOISE_FLOOR = "0.03% of image area"
 
+SEEDS = [42, 43, 44]
+EPOCHS = [50, 100, 150, 300, 500, 750]
+
 plt.rcParams.update({
     'font.family': 'sans-serif',
     'font.sans-serif': ['Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
@@ -64,16 +68,6 @@ plt.rcParams.update({
 })
 
 OUT_DIR = SCRIPT_DIR
-
-# Folder name -> epoch number.
-EPOCH_DIRS = [
-    ("predictions_milestones_625images_seed42_epoch50", 50),
-    ("predictions_milestones_625images_seed42_epoch100", 100),
-    ("predictions_milestones_625images_seed42_epoch150", 150),
-    ("predictions_milestones_625images_seed42_epoch300", 300),
-    ("predictions_milestones_625images_seed42_epoch500", 500),
-    ("predictions_milestones_625images_seed42_epoch750", 750),
-]
 
 # Metric key -> (legend label, color).
 METRICS = {
@@ -123,6 +117,40 @@ def evaluate_epoch(rows, positive_class="malignant"):
     return case_recall, case_fp_rate
 
 
+def summarize_epochs(data, positive_class):
+    """Return {metric: (means, stds)} across seeds, per epoch."""
+    means = {key: [] for key in METRICS}
+    stds = {key: [] for key in METRICS}
+    for epoch in EPOCHS:
+        recalls = []
+        fp_rates = []
+        for seed in SEEDS:
+            folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
+            rows = [r for r in data.rows if r.configuration_id == folder]
+            if not rows:
+                print(f"WARNING: no rows for {folder}")
+                continue
+            rec, fp = evaluate_epoch(rows, positive_class)
+            recalls.append(rec)
+            fp_rates.append(fp)
+        means["case_recall"].append(float(np.nanmean(recalls)) if recalls else float('nan'))
+        stds["case_recall"].append(float(np.nanstd(recalls, ddof=1)) if recalls else float('nan'))
+        means["case_fp_rate"].append(float(np.nanmean(fp_rates)) if fp_rates else float('nan'))
+        stds["case_fp_rate"].append(float(np.nanstd(fp_rates, ddof=1)) if fp_rates else float('nan'))
+    return means, stds
+
+
+def metric_payload(means, stds):
+    return {
+        "Detection": {"mean": means["case_recall"], "std": stds["case_recall"]},
+        "False positive rate": {"mean": means["case_fp_rate"], "std": stds["case_fp_rate"]},
+    }
+
+
+def fmt(mean, std):
+    return f"{mean:.3f} ± {std:.3f}"
+
+
 def main():
     definition = "IoU > 0.5"
 
@@ -132,75 +160,40 @@ def main():
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
           f"{len(data.rows)} rows")
 
-    epochs = []
-    metrics = {key: [] for key in METRICS}
-    benign_metrics = {key: [] for key in METRICS}
-    combined_metrics = {key: [] for key in METRICS}
-    for folder_name, epoch in EPOCH_DIRS:
-        rows = [r for r in data.rows if r.configuration_id == folder_name]
-        if not rows:
-            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
-            continue
-        crec, cfp = evaluate_epoch(rows, positive_class="malignant")
-        rb_rec, rb_fp = evaluate_epoch(rows, positive_class="benign")
-        rc_rec, rc_fp = evaluate_epoch(rows, positive_class="combined")
-        epochs.append(epoch)
-        metrics["case_recall"].append(crec)
-        metrics["case_fp_rate"].append(cfp)
-        benign_metrics["case_recall"].append(rb_rec)
-        benign_metrics["case_fp_rate"].append(rb_fp)
-        combined_metrics["case_recall"].append(rc_rec)
-        combined_metrics["case_fp_rate"].append(rc_fp)
+    combined = summarize_epochs(data, "combined")
+    malignant = summarize_epochs(data, "malignant")
+    benign = summarize_epochs(data, "benign")
 
-    if not epochs:
-        print("No per-epoch predictions found, exiting")
-        return
+    stats = {"combined": combined, "malignant": malignant, "benign": benign}
+    epochs = EPOCHS
 
-    # --- Terminal table (all masses) ---
-    print("\nAll masses — Epoch | CRec | CFP")
-    print("-------------------|------|-----")
-    for i, ep in enumerate(epochs):
-        print(f"{ep:>18} | {combined_metrics['case_recall'][i]:.3f} | "
-              f"{combined_metrics['case_fp_rate'][i]:.3f}")
-
-    # --- Terminal table (malignant) ---
-    print("\nMalignant — Epoch | CRec | CFP")
-    print("------------------|------|-----")
-    for i, ep in enumerate(epochs):
-        print(f"{ep:>18} | {metrics['case_recall'][i]:.3f} | "
-              f"{metrics['case_fp_rate'][i]:.3f}")
-
-    # --- Terminal table (benign) ---
-    print("\nBenign   — Epoch | CRec | CFP")
-    print("------------------|------|-----")
-    for i, ep in enumerate(epochs):
-        print(f"{ep:>18} | {benign_metrics['case_recall'][i]:.3f} | "
-              f"{benign_metrics['case_fp_rate'][i]:.3f}")
+    # --- Terminal tables ---
+    for title, group in [("All masses", "combined"),
+                         ("Malignant", "malignant"),
+                         ("Benign", "benign")]:
+        means, stds = stats[group]
+        print(f"\n{title} — Epoch | CRec | CFP")
+        print(f"{'':>7}  ------|------|-----")
+        for i, ep in enumerate(epochs):
+            print(f"{ep:>5} | {fmt(means['case_recall'][i], stds['case_recall'][i])} | "
+                  f"{fmt(means['case_fp_rate'][i], stds['case_fp_rate'][i])}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_overlap_detection_iou_05.json"
     payload = {
         "title": "Case-level overlap-based detection (IoU>0.5) by saved milestone epoch",
-        "description": ("Single preliminary milestones test run: seed 42, 625 images, "
-                        f"detection = {definition}, noise floor {NOISE_FLOOR}."),
+        "description": ("Three preliminary milestones test runs: seeds 42/43/44, "
+                        "625 images each, detection = IoU > 0.5, "
+                        f"noise floor {NOISE_FLOOR}. Values are mean ± std across seeds."),
         "noise_floor": NOISE_FLOOR,
         "detection_definition": definition,
         "dataset_snapshot_id": data.snapshot_id,
-        "seed": 42,
+        "seeds": SEEDS,
         "images": 625,
         "epochs": epochs,
-        "combined": {
-            "Detection": combined_metrics["case_recall"],
-            "False positive rate": combined_metrics["case_fp_rate"],
-        },
-        "malignant": {
-            "Detection": metrics["case_recall"],
-            "False positive rate": metrics["case_fp_rate"],
-        },
-        "benign": {
-            "Detection": benign_metrics["case_recall"],
-            "False positive rate": benign_metrics["case_fp_rate"],
-        },
+        "combined": metric_payload(combined[0], combined[1]),
+        "malignant": metric_payload(malignant[0], malignant[1]),
+        "benign": metric_payload(benign[0], benign[1]),
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -210,7 +203,7 @@ def main():
     md_lines = [
         "# Case-level overlap-based detection (IoU>0.5) by saved milestone epoch",
         "",
-        f"Single preliminary milestones test run: seed 42, 625 images, "
+        f"Three preliminary milestones test runs: seeds 42/43/44, 625 images each, "
         f"detection = {definition}, noise floor {NOISE_FLOOR}.",
         "",
         "A mass case is detected when the highest single-component IoU between "
@@ -221,42 +214,24 @@ def main():
         "Each table reports case-level false positives computed on normal cases "
         "only. A normal case with any prediction is a false alarm.",
         "",
-        "No error bars (single seed).",
+        "Values are mean ± standard deviation across the three seeds.",
         "",
     ]
 
-    md_lines.append("## All masses")
-    md_lines.append("")
-    md_lines.append("| Epoch | Detection | Normal cases FP rate |")
-    md_lines.append("|------:|----------:|-------------------:|")
-    for i, ep in enumerate(epochs):
-        md_lines.append(
-            f"| {ep} | {combined_metrics['case_recall'][i]:.3f} | "
-            f"{combined_metrics['case_fp_rate'][i]:.3f} |"
-        )
-    md_lines.append("")
-
-    md_lines.append("## Malignant masses")
-    md_lines.append("")
-    md_lines.append("| Epoch | Detection | Normal cases FP rate |")
-    md_lines.append("|------:|----------:|-------------------:|")
-    for i, ep in enumerate(epochs):
-        md_lines.append(
-            f"| {ep} | {metrics['case_recall'][i]:.3f} | "
-            f"{metrics['case_fp_rate'][i]:.3f} |"
-        )
-    md_lines.append("")
-
-    md_lines.append("## Benign masses")
-    md_lines.append("")
-    md_lines.append("| Epoch | Detection | Normal cases FP rate |")
-    md_lines.append("|------:|----------:|-------------------:|")
-    for i, ep in enumerate(epochs):
-        md_lines.append(
-            f"| {ep} | {benign_metrics['case_recall'][i]:.3f} | "
-            f"{benign_metrics['case_fp_rate'][i]:.3f} |"
-        )
-    md_lines.append("")
+    for title, group in [("All masses", "combined"),
+                         ("Malignant masses", "malignant"),
+                         ("Benign masses", "benign")]:
+        means, stds = stats[group]
+        md_lines.append(f"## {title}")
+        md_lines.append("")
+        md_lines.append("| Epoch | Detection | Normal cases FP rate |")
+        md_lines.append("|------:|----------:|-------------------:|")
+        for i, ep in enumerate(epochs):
+            md_lines.append(
+                f"| {ep} | {fmt(means['case_recall'][i], stds['case_recall'][i])} | "
+                f"{fmt(means['case_fp_rate'][i], stds['case_fp_rate'][i])} |"
+            )
+        md_lines.append("")
     md_path = OUT_DIR / "epoch_convergence_by_overlap_detection_iou_05.md"
     with open(md_path, "w") as f:
         f.write("\n".join(md_lines))
@@ -265,14 +240,10 @@ def main():
     # --- Plot ---
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for src, key, label, color in PLOT_SERIES:
-        data = {
-            "combined": combined_metrics,
-            "malignant": metrics,
-            "benign": benign_metrics,
-        }[src][key]
-        ax.plot(epochs, data, '-o', color=color, label=label,
-                markersize=7, linewidth=1.5, markeredgecolor='white',
-                markeredgewidth=1.5, zorder=3)
+        means, stds = stats[src]
+        ax.errorbar(epochs, means[key], yerr=stds[key], fmt='-o', color=color,
+                    label=label, markersize=7, linewidth=1.5, capsize=3,
+                    markeredgecolor='white', markeredgewidth=1.5, zorder=3)
 
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Detection rate')

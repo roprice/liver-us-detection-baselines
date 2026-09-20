@@ -1,14 +1,14 @@
 # Combined detection vs. epoch
 
-Single preliminary milestones run: seed 42, 625 images, joint-selected checkpoints. No error bars (single seed).
+Preliminary milestones run: seeds 42/43/44, 625 images each.
 
-Values are combined case-level recall (fraction of all mass-present cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers.
+Values are combined case-level recall (fraction of all mass-present cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers. Mean ± standard deviation across seeds.
 
 | Epoch | Triage | Overlap (IoU>0.0) | Overlap (IoU>0.2) | Overlap (IoU>0.5) | Centroid (1.0xD) | Centroid (0.5xD) | Centroid (0.25xD) |
 |------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
-| 50 | 0.7368 | 0.7158 | 0.6211 | 0.5053 | 0.7158 | 0.6947 | 0.5895 |
-| 100 | 0.7789 | 0.7474 | 0.7368 | 0.5789 | 0.7474 | 0.7368 | 0.6737 |
-| 150 | 0.8947 | 0.8421 | 0.7579 | 0.6316 | 0.8421 | 0.8105 | 0.7158 |
-| 300 | 0.8842 | 0.8316 | 0.8000 | 0.6316 | 0.8316 | 0.8211 | 0.7579 |
-| 500 | 0.8211 | 0.7789 | 0.7158 | 0.6105 | 0.7789 | 0.7684 | 0.6632 |
-| 750 | 0.8947 | 0.8421 | 0.8211 | 0.7263 | 0.8526 | 0.8316 | 0.7684 |
+| 50 | 0.8175 ± 0.0978 | 0.7614 ± 0.0540 | 0.6912 ± 0.0685 | 0.5579 ± 0.0482 | 0.7614 ± 0.0540 | 0.7193 ± 0.0425 | 0.6421 ± 0.0459 |
+| 100 | 0.8175 ± 0.0338 | 0.7684 ± 0.0211 | 0.7368 ± 0.0105 | 0.5930 ± 0.0338 | 0.7684 ± 0.0211 | 0.7544 ± 0.0304 | 0.6912 ± 0.0399 |
+| 150 | 0.8526 ± 0.0640 | 0.8070 ± 0.0438 | 0.7579 ± 0.0105 | 0.6246 ± 0.0219 | 0.8070 ± 0.0438 | 0.7930 ± 0.0304 | 0.7193 ± 0.0061 |
+| 300 | 0.8737 ± 0.0279 | 0.8070 ± 0.0425 | 0.7754 ± 0.0519 | 0.6456 ± 0.0438 | 0.8070 ± 0.0425 | 0.7930 ± 0.0486 | 0.7404 ± 0.0219 |
+| 500 | 0.8737 ± 0.0526 | 0.8211 ± 0.0380 | 0.7614 ± 0.0540 | 0.6596 ± 0.0475 | 0.8211 ± 0.0380 | 0.8070 ± 0.0370 | 0.7333 ± 0.0617 |
+| 750 | 0.8807 ± 0.0243 | 0.8351 ± 0.0219 | 0.8070 ± 0.0122 | 0.7018 ± 0.0219 | 0.8386 ± 0.0243 | 0.8175 ± 0.0161 | 0.7474 ± 0.0182 |

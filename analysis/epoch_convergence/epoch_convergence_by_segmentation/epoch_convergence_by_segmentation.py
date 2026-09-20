@@ -1,19 +1,19 @@
-"""Check whether the preliminary milestones run (Dataset 001 AUL, seed 42) has
+"""Check whether the preliminary milestones run (Dataset 001 AUL, 3 seeds) has
 converged using real segmentation Dice on hard predictions, rather than the
 training-time pseudo Dice alone.
 
 For each milestone epoch (50/100/150/300/500/750) the script reports
 segmentation Dice (liver, malignant mass, benign mass, combined mass) from the
-canonical predictions dataset (analysis/predictions_dataset), then plots Dice
-vs epoch and reports the tail-epoch slope. The final/best/best mass snapshot
-folders are evaluated as additional rows in the report.
+canonical predictions dataset (analysis/predictions_dataset), averaged across
+the three seeds with standard deviation, then plots Dice vs epoch and reports
+the tail-epoch slope. The final/best/best mass snapshot folders are evaluated as
+additional rows in the report.
 
 The training-time EMA mass pseudo-Dice trace (from the training log) is overlaid
 in gray, dotted, on its own legend, to show the continuous climb that the sparse
 checkpoint predictions cannot.
 
-This is a single-seed script: only seed 42 prediction data exists for this
-preliminary run, so there is no seed averaging or multi-folder ablation loop.
+Three seeds (42/43/44), 625 images each; error bars are the across-seed std.
 
 Run from project root:
     python analysis/epoch_convergence/epoch_convergence_by_segmentation/epoch_convergence_by_segmentation.py
@@ -43,6 +43,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
+
+SEEDS = [42, 43, 44]
+EPOCHS = [50, 100, 150, 300, 500, 750]
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -76,27 +79,13 @@ SERIES = {
 # Style for the overlaid training-time mass pseudo-Dice trace.
 PSEUDO_STYLE = dict(color='#8c8c8c', linestyle=':', linewidth=1.2)
 
-# Script lives at analysis/epoch_convergence_by_segmentation/, so this folder is
-# the output dir and the project root is two parents up.
-
 # Keep all outputs (Markdown/pdf/png) in the same folder as this script.
 OUT_DIR = SCRIPT_DIR
 
-# Training log (nnU-Net training_log_*.txt) for the single seed-42 run.
+# Training log (nnU-Net training_log_*.txt) for the seed-42 run.
 LOG_DIR = PROJECT_ROOT / "nnUNet_results/Dataset001_AUL" / (
     "nnUNetTrainerMilestones_seed42__nnUNetPlans__2d/fold_0")
 LOG_DIR = str(LOG_DIR)
-
-# Folder name -> milestone epoch whose convergence we want to assess. Matches
-# nnUNetTrainerMilestones.MILESTONE_EPOCHS = {50, 100, 150, 300, 500, 750}.
-EPOCH_DIRS = [
-    ("predictions_milestones_625images_seed42_epoch50", 50),
-    ("predictions_milestones_625images_seed42_epoch100", 100),
-    ("predictions_milestones_625images_seed42_epoch150", 150),
-    ("predictions_milestones_625images_seed42_epoch300", 300),
-    ("predictions_milestones_625images_seed42_epoch500", 500),
-    ("predictions_milestones_625images_seed42_epoch750", 750),
-]
 
 # Snapshot checkpoints reported as extra rows, by configuration_id suffix.
 SNAPSHOT_DIRS = [
@@ -104,6 +93,8 @@ SNAPSHOT_DIRS = [
     ("best_mass", "best mass"),
     ("final", "final"),
 ]
+
+DICE_KEYS = ["liver", "malignant", "benign", "combined_mass"]
 
 
 def evaluate_rows(rows):
@@ -129,6 +120,26 @@ def evaluate_rows(rows):
         "combined_mass": (np.mean(combined_mass_scores)
                           if combined_mass_scores else 0.0),
     }
+
+
+def summarize_checkpoint(data, suffix):
+    """Return (means, stds) dicts of Dice across seeds for one checkpoint."""
+    per_seed = []
+    for seed in SEEDS:
+        config_id = f"predictions_milestones_625images_seed{seed}_{suffix}"
+        rows = [r for r in data.rows if r.configuration_id == config_id]
+        if not rows:
+            print(f"WARNING: no rows for {config_id}")
+            continue
+        per_seed.append(evaluate_rows(rows))
+
+    means = {}
+    stds = {}
+    for key in DICE_KEYS:
+        vals = [d[key] for d in per_seed]
+        means[key] = float(np.nanmean(vals)) if vals else float('nan')
+        stds[key] = float(np.nanstd(vals, ddof=1)) if vals else float('nan')
+    return means, stds
 
 
 def find_training_log(log_dir):
@@ -158,6 +169,10 @@ def parse_raw_mass_pseudo_dice(log_path):
     return epochs, ema
 
 
+def fmt(mean, std):
+    return f"{mean:.4f} ± {std:.4f}"
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -165,28 +180,24 @@ def main():
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
           f"{len(data.rows)} rows")
 
-    epochs = []
-    dice = {"liver": [], "malignant": [], "benign": [], "combined_mass": []}
-    for folder_name, epoch in EPOCH_DIRS:
-        rows = [r for r in data.rows if r.configuration_id == folder_name]
-        if not rows:
-            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
-            continue
-        r = evaluate_rows(rows)
-        epochs.append(epoch)
-        for key in dice:
-            dice[key].append(r[key])
+    dice_means = {key: [] for key in DICE_KEYS}
+    dice_stds = {key: [] for key in DICE_KEYS}
+    for epoch in EPOCHS:
+        means, stds = summarize_checkpoint(data, f"epoch{epoch}")
+        for key in DICE_KEYS:
+            dice_means[key].append(means[key])
+            dice_stds[key].append(stds[key])
 
     # Snapshots reported as extra rows alongside the milestones.
     snapshots = []
     for folder_label, display_label in SNAPSHOT_DIRS:
-        config_id = f"predictions_milestones_625images_seed42_{folder_label}"
-        rows = [r for r in data.rows if r.configuration_id == config_id]
-        if not rows:
-            print(f"WARNING: no rows for {config_id}, skipping {folder_label}")
+        means, stds = summarize_checkpoint(data, folder_label)
+        if all(np.isnan(means[k]) for k in DICE_KEYS):
+            print(f"WARNING: no rows for {folder_label}, skipping")
             continue
-        snapshots.append((display_label, evaluate_rows(rows)))
+        snapshots.append((display_label, means, stds))
 
+    epochs = EPOCHS
     if not epochs:
         print("No per-epoch predictions found, exiting")
         return
@@ -195,18 +206,22 @@ def main():
     # segmentation Dice is still climbing at the final milestone. Computed on the
     # malignant (mass) class, the label class of interest for the convergence claim.
     tail_n = min(2, len(epochs))
-    tail_metric = dice["malignant"]
+    tail_metric = dice_means["malignant"]
     slope = ((tail_metric[-1] - tail_metric[-tail_n]) / (epochs[-1] - epochs[-tail_n])
              if epochs[-1] != epochs[-tail_n] else 0.0)
 
     print("Epoch | Liver | Malignant | Benign | Combined mass")
     print("------|-------|-----------|--------|--------------")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>5} | {dice['liver'][i]:.4f} | {dice['malignant'][i]:.4f} "
-              f"| {dice['benign'][i]:.4f} | {dice['combined_mass'][i]:.4f}")
-    for label, r in snapshots:
-        print(f"{label:>5} | {r['liver']:.4f} | {r['malignant']:.4f} "
-              f"| {r['benign']:.4f} | {r['combined_mass']:.4f}")
+        print(f"{ep:>5} | {fmt(dice_means['liver'][i], dice_stds['liver'][i])} | "
+              f"{fmt(dice_means['malignant'][i], dice_stds['malignant'][i])} | "
+              f"{fmt(dice_means['benign'][i], dice_stds['benign'][i])} | "
+              f"{fmt(dice_means['combined_mass'][i], dice_stds['combined_mass'][i])}")
+    for label, m, s in snapshots:
+        print(f"{label:>5} | {fmt(m['liver'], s['liver'])} | "
+              f"{fmt(m['malignant'], s['malignant'])} | "
+              f"{fmt(m['benign'], s['benign'])} | "
+              f"{fmt(m['combined_mass'], s['combined_mass'])}")
     print(f"\nFinal malignant {tail_metric[-1]:.4f}, "
           f"tail-{tail_n}-epoch slope {slope:+.5f}/epoch")
 
@@ -214,22 +229,26 @@ def main():
     md_lines = [
         "# Segmentation quality vs. epoch",
         "",
-        "Preliminary milestones run: seed 42, 625 images, joint-selected checkpoints.",
+        "Preliminary milestones run: seeds 42/43/44, 625 images each.",
         "",
-        "No error bars (single seed).",
+        "Values are mean ± standard deviation across the three seeds.",
         "",
         "| Epoch | Liver Dice | Malignant mass Dice | Benign mass Dice | Combined mass Dice |",
         "|------:|-----------:|--------------------:|----------------:|-------------------:|",
     ]
     for i, ep in enumerate(epochs):
         md_lines.append(
-            f"| {ep} | {dice['liver'][i]:.4f} | {dice['malignant'][i]:.4f} | "
-            f"{dice['benign'][i]:.4f} | {dice['combined_mass'][i]:.4f} |"
+            f"| {ep} | {fmt(dice_means['liver'][i], dice_stds['liver'][i])} | "
+            f"{fmt(dice_means['malignant'][i], dice_stds['malignant'][i])} | "
+            f"{fmt(dice_means['benign'][i], dice_stds['benign'][i])} | "
+            f"{fmt(dice_means['combined_mass'][i], dice_stds['combined_mass'][i])} |"
         )
-    for label, r in snapshots:
+    for label, m, s in snapshots:
         md_lines.append(
-            f"| {label} | {r['liver']:.4f} | {r['malignant']:.4f} | "
-            f"{r['benign']:.4f} | {r['combined_mass']:.4f} |"
+            f"| {label} | {fmt(m['liver'], s['liver'])} | "
+            f"{fmt(m['malignant'], s['malignant'])} | "
+            f"{fmt(m['benign'], s['benign'])} | "
+            f"{fmt(m['combined_mass'], s['combined_mass'])} |"
         )
     md_lines.extend([
         "",
@@ -254,9 +273,9 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 4))
     for key, (color, label, linestyle) in SERIES.items():
-        ax.plot(epochs, dice[key], linestyle, color=color, marker='o',
-                markersize=7, linewidth=1.5, label=label, zorder=3,
-                markeredgecolor='white', markeredgewidth=1.5)
+        ax.errorbar(epochs, dice_means[key], yerr=dice_stds[key], fmt=linestyle + 'o',
+                    color=color, markersize=7, linewidth=1.5, label=label,
+                    capsize=3, markeredgecolor='white', markeredgewidth=1.5, zorder=3)
 
     if pseudo_epochs:
         ax.plot(pseudo_epochs, pseudo_ema, color=PSEUDO_STYLE['color'],

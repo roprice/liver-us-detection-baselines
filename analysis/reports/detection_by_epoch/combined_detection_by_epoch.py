@@ -11,7 +11,7 @@ The values are read from the per-criterion JSON artifacts already produced by
 the individual analysis scripts (recomputation would duplicate their logic).
 Combined detection is the case-level recall over all mass-present cases.
 
-Single-seed run (seed 42, 625 images, joint-selected checkpoints); no error bars.
+Three seeds (42/43/44); error bars are the across-seed std.
 
 Run from project root:
     python analysis/reports/detection_by_epoch/combined_detection_by_epoch.py
@@ -30,6 +30,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 OUT_DIR = SCRIPT_DIR
+
+VIEW = "combined"
+OUT_BASE = "combined_detection_by_epoch"
 
 # Root holding the individual per-criterion analysis outputs.
 ANALYSIS_ROOT = PROJECT_ROOT / "analysis/epoch_convergence"
@@ -78,70 +81,74 @@ plt.rcParams.update({
 
 
 def load_recall(rel_path):
-    """Return (epochs, combined case_recall) from a criterion JSON."""
+    """Return (epochs, mean, std) of case recall from a criterion JSON."""
     path = ANALYSIS_ROOT / rel_path
     with open(path) as f:
         data = json.load(f)
-    return data["epochs"], data["combined"]["Detection"]
+    det = data[VIEW]["Detection"]
+    return data["epochs"], det["mean"], det["std"]
+
+
+def fmt(mean, std):
+    return f"{mean:.4f} ± {std:.4f}"
 
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     epochs = None
-    series = []  # (label, recall_list, color, linestyle)
+    series = []  # (label, mean_list, std_list, color, linestyle)
     for key, rel_path, label, color, linestyle in CRITERIA:
         p = ANALYSIS_ROOT / rel_path
         if not p.exists():
             print(f"WARNING: {p} not found, skipping {key}")
             continue
-        ep, recall = load_recall(rel_path)
+        ep, mean, std = load_recall(rel_path)
         if epochs is None:
             epochs = ep
         elif ep != epochs:
             print(f"WARNING: epoch mismatch for {key}, expected {epochs}, got {ep}")
-        series.append((label, recall, color, linestyle))
+        series.append((label, mean, std, color, linestyle))
 
     if epochs is None:
         print("No criterion JSONs found, exiting")
         return
 
     # --- Terminal table ---
-    header = f"{'Epoch':>5} | " + " | ".join(f"{l:>18}" for l, *_ in series)
+    header = f"{'Epoch':>5} | " + " | ".join(f"{l:>22}" for l, *_ in series)
     print(header)
     print("-" * len(header))
     for i, ep in enumerate(epochs):
-        print(f"{ep:>5} | " + " | ".join(f"{s[i]:>18.4f}" for _, s, *_ in series))
+        print(f"{ep:>5} | " + " | ".join(f"{fmt(m[i], s[i]):>22}" for _, m, s, *_ in series))
 
     # --- Markdown ---
     md_lines = [
         "# Combined detection vs. epoch",
         "",
-        "Single preliminary milestones run: seed 42, 625 images, joint-selected "
-        "checkpoints. No error bars (single seed).",
+        "Preliminary milestones run: seeds 42/43/44, 625 images each.",
         "",
         "Values are combined case-level recall (fraction of all mass-present "
         "cases detected) under seven criteria: triage, three overlap IoU tiers, "
-        "and three centroid tolerance tiers.",
+        "and three centroid tolerance tiers. Mean ± standard deviation across seeds.",
         "",
         "| Epoch |" + "".join(f" {l} |" for l, *_ in series),
     ]
     md_lines.append("|------:|" + "".join("--------------:|" for _ in series))
     for i, ep in enumerate(epochs):
         md_lines.append(f"| {ep} |" +
-                        "".join(f" {s[i]:.4f} |" for _, s, *_ in series))
+                        "".join(f" {fmt(m[i], s[i])} |" for _, m, s, *_ in series))
     md_lines.append("")
-    md_path = OUT_DIR / "combined_detection_by_epoch.md"
+    md_path = OUT_DIR / f"{OUT_BASE}.md"
     with open(md_path, "w") as f:
         f.write("\n".join(md_lines))
     print(f"Wrote {md_path}")
 
     # --- Plot ---
     fig, ax = plt.subplots(figsize=(8, 4.5))
-    for label, recall, color, linestyle in series:
-        ax.plot(epochs, recall, linestyle, color=color, label=label,
-                marker='o', markersize=7, linewidth=1.5, markeredgecolor='white',
-                markeredgewidth=1.5, zorder=3)
+    for label, mean, std, color, linestyle in series:
+        ax.errorbar(epochs, mean, yerr=std, fmt=linestyle + 'o', color=color,
+                    label=label, markersize=7, linewidth=1.5, capsize=3,
+                    markeredgecolor='white', markeredgewidth=1.5, zorder=3)
 
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Combined detection (case recall)')
@@ -164,7 +171,7 @@ def main():
     plt.tight_layout(pad=1.2)
 
     for ext in ('pdf', 'png'):
-        out = OUT_DIR / f'combined_detection_by_epoch.{ext}'
+        out = OUT_DIR / f'{OUT_BASE}.{ext}'
         fig.savefig(out, dpi=300, bbox_inches='tight',
                     metadata={'CreationDate': None})
         print(f'Wrote {out}')

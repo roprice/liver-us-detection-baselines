@@ -1,14 +1,14 @@
 # Benign detection vs. epoch
 
-Single preliminary milestones run: seed 42, 625 images, joint-selected checkpoints. No error bars (single seed).
+Preliminary milestones run: seeds 42/43/44, 625 images each.
 
-Values are benign case-level recall (fraction of benign cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers.
+Values are benign case-level recall (fraction of benign cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers. Mean ± standard deviation across seeds.
 
 | Epoch | Triage | Overlap (IoU>0.0) | Overlap (IoU>0.2) | Overlap (IoU>0.5) | Centroid (1.0xD) | Centroid (0.5xD) | Centroid (0.25xD) |
 |------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
-| 50 | 0.3667 | 0.3333 | 0.2333 | 0.2333 | 0.3333 | 0.3333 | 0.3000 |
-| 100 | 0.4333 | 0.3667 | 0.3667 | 0.2333 | 0.3667 | 0.3667 | 0.3333 |
-| 150 | 0.7000 | 0.5667 | 0.4000 | 0.3667 | 0.5667 | 0.5333 | 0.4667 |
-| 300 | 0.6667 | 0.5333 | 0.4667 | 0.2667 | 0.5333 | 0.5333 | 0.4333 |
-| 500 | 0.5333 | 0.4667 | 0.3333 | 0.2667 | 0.4667 | 0.4667 | 0.3333 |
-| 750 | 0.7000 | 0.5667 | 0.5667 | 0.4000 | 0.6000 | 0.5667 | 0.5000 |
+| 50 | 0.5889 ± 0.2546 | 0.4556 ± 0.1171 | 0.3556 ± 0.1072 | 0.2556 ± 0.0694 | 0.4556 ± 0.1171 | 0.4000 ± 0.0577 | 0.3556 ± 0.0509 |
+| 100 | 0.5556 ± 0.1171 | 0.4333 ± 0.0577 | 0.4111 ± 0.0385 | 0.2778 ± 0.0509 | 0.4333 ± 0.0577 | 0.4333 ± 0.0577 | 0.4000 ± 0.0667 |
+| 150 | 0.6222 ± 0.1347 | 0.5111 ± 0.0694 | 0.4333 ± 0.0333 | 0.3333 ± 0.0333 | 0.5111 ± 0.0694 | 0.4889 ± 0.0509 | 0.4444 ± 0.0385 |
+| 300 | 0.6889 ± 0.0385 | 0.5444 ± 0.0192 | 0.4889 ± 0.0385 | 0.3222 ± 0.0694 | 0.5444 ± 0.0192 | 0.5444 ± 0.0192 | 0.4778 ± 0.0509 |
+| 500 | 0.6889 ± 0.1503 | 0.5667 ± 0.0882 | 0.4556 ± 0.1072 | 0.3889 ± 0.1072 | 0.5667 ± 0.0882 | 0.5667 ± 0.0882 | 0.4667 ± 0.1202 |
+| 750 | 0.6889 ± 0.0509 | 0.5778 ± 0.0192 | 0.5556 ± 0.0192 | 0.4444 ± 0.0509 | 0.5889 ± 0.0192 | 0.5778 ± 0.0192 | 0.5111 ± 0.0192 |

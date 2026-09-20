@@ -1,21 +1,21 @@
-"""False positives vs. epoch for the preliminary milestones run (seed 42, 625 images).
+"""False positives vs. epoch for the preliminary milestones run (3 seeds, 625 images each).
 
 Reports, per milestone checkpoint, how many Normal (mass-free) test cases the
 model flags as containing a mass. On this dataset every image is one patient and
 holds at most one mass, so a "false positive" collapses to a single case-level
 signal: a Normal case where the model predicts any retained mass.
 
-Two views per epoch:
+Two views per epoch, averaged across the three seeds with standard deviation:
   - Raw false-alarm count over the Normal test cases.
   - False-alarm rate (count / number of Normal cases).
 
 Reads the canonical predictions dataset (analysis/predictions_dataset): a false
 positive is simply a normal case whose normal_false_positive column is True.
 
-Single-seed run (seed 42, 625 images, joint-selected checkpoints); no error bars.
+Three seeds (42/43/44), 625 images each; error bars are the across-seed std.
 
 Run from project root:
-    python analysis/epoch_convergence_by_false_positives/epoch_convergence_by_false_positives.py
+    python analysis/epoch_convergence/epoch_convergence_by_false_positives/epoch_convergence_by_false_positives.py
 """
 
 import json
@@ -37,6 +37,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
+
+SEEDS = [42, 43, 44]
+EPOCHS = [50, 100, 150, 300, 500, 750]
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -62,16 +65,6 @@ plt.rcParams.update({
 
 OUT_DIR = SCRIPT_DIR
 
-# Folder name -> epoch number.
-EPOCH_DIRS = [
-    ("predictions_milestones_625images_seed42_epoch50", 50),
-    ("predictions_milestones_625images_seed42_epoch100", 100),
-    ("predictions_milestones_625images_seed42_epoch150", 150),
-    ("predictions_milestones_625images_seed42_epoch300", 300),
-    ("predictions_milestones_625images_seed42_epoch500", 500),
-    ("predictions_milestones_625images_seed42_epoch750", 750),
-]
-
 FP_COUNT_COLOR = "#eb6834"
 FP_RATE_COLOR = "#2a78d6"
 
@@ -91,45 +84,54 @@ def main():
           f"{len(data.rows)} rows")
 
     epochs = []
-    fp_counts = []
-    fp_rates = []
+    fp_count_means = []
+    fp_count_stds = []
+    fp_rate_means = []
+    fp_rate_stds = []
     n_normal = None
-    for folder_name, epoch in EPOCH_DIRS:
-        rows = [r for r in data.rows if r.configuration_id == folder_name]
-        if not rows:
-            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
-            continue
-        fp_count, n = count_false_positives(rows)
-        if n_normal is None:
-            n_normal = n
-        elif n != n_normal:
-            print(f"WARNING: normal count {n} != {n_normal} for {folder_name}")
-        rate = fp_count / n if n > 0 else 0.0
+    for epoch in EPOCHS:
+        counts = []
+        rates = []
+        for seed in SEEDS:
+            folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
+            rows = [r for r in data.rows if r.configuration_id == folder]
+            if not rows:
+                print(f"WARNING: no rows for {folder}")
+                continue
+            fp_count, n = count_false_positives(rows)
+            if n_normal is None:
+                n_normal = n
+            elif n != n_normal:
+                print(f"WARNING: normal count {n} != {n_normal} for {folder}")
+            counts.append(fp_count)
+            rates.append(fp_count / n if n > 0 else 0.0)
         epochs.append(epoch)
-        fp_counts.append(fp_count)
-        fp_rates.append(rate)
+        fp_count_means.append(float(np.nanmean(counts)) if counts else float('nan'))
+        fp_count_stds.append(float(np.nanstd(counts, ddof=1)) if counts else float('nan'))
+        fp_rate_means.append(float(np.nanmean(rates)) if rates else float('nan'))
+        fp_rate_stds.append(float(np.nanstd(rates, ddof=1)) if rates else float('nan'))
 
     if not epochs:
         print("No per-epoch predictions found, exiting")
         return
 
     # --- Terminal table ---
-    print("\nEpoch | FP rate | FP count | Seed 42")
-    print("------|---------|----------|---------")
+    print("\nEpoch | FP rate | FP count")
+    print("------|---------|----------")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>5} | {fp_rates[i]:.4f} | {fp_counts[i]:>8} | {fp_counts[i]}/{n_normal}")
+        print(f"{ep:>5} | {fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
+              f"{fp_count_means[i]:.2f} ± {fp_count_stds[i]:.2f}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_false_positives.json"
     payload = {
-        "seed": 42,
+        "seeds": SEEDS,
         "images": 625,
         "normal_cases": n_normal,
         "dataset_snapshot_id": data.snapshot_id,
         "epochs": epochs,
-        "seed_42": [f"{c}/{n_normal}" for c in fp_counts],
-        "fp_count": fp_counts,
-        "fp_rate": fp_rates,
+        "fp_count": {"mean": fp_count_means, "std": fp_count_stds},
+        "fp_rate": {"mean": fp_rate_means, "std": fp_rate_stds},
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -139,22 +141,24 @@ def main():
     md_lines = [
         "# False positives vs. epoch",
         "",
-        "Single preliminary milestones run: seed 42, 625 images, joint-selected "
-        "checkpoints.",
+        "Preliminary milestones run: seeds 42/43/44, 625 images each.",
         "",
         "A false positive is a Normal (mass-free) case the model flags as "
         "containing a mass. Every image is one patient with at most one mass, so "
         "this is a single case-level signal.",
         "",
-        "No error bars (single seed).",
+        "Values are mean ± standard deviation across the three seeds.",
         "",
         f"Normal test cases: {n_normal}.",
         "",
-        "| Epoch | FP rate | False positives | Seed 42 |",
-        "|------:|--------:|----------------:|--------:|",
+        "| Epoch | FP rate | False positives |",
+        "|------:|--------:|----------------:|",
     ]
     for i, ep in enumerate(epochs):
-        md_lines.append(f"| {ep} | {fp_rates[i]:.4f} | {fp_counts[i]} | {fp_counts[i]}/{n_normal} |")
+        md_lines.append(
+            f"| {ep} | {fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
+            f"{fp_count_means[i]:.2f} ± {fp_count_stds[i]:.2f} |"
+        )
     md_lines.append("")
     md_path = OUT_DIR / "epoch_convergence_by_false_positives.md"
     with open(md_path, "w") as f:
@@ -164,9 +168,10 @@ def main():
     # --- Plot: FP count (left) and rate (right) on twin axes ---
     fig, ax = plt.subplots(figsize=(8, 4))
 
-    ax.plot(epochs, fp_counts, '-o', color=FP_COUNT_COLOR, label='False positives',
-            markersize=7, linewidth=1.5, markeredgecolor='white',
-            markeredgewidth=1.5, zorder=3)
+    ax.errorbar(epochs, fp_count_means, yerr=fp_count_stds, fmt='-o',
+                color=FP_COUNT_COLOR, label='False positives', markersize=7,
+                linewidth=1.5, capsize=3, markeredgecolor='white',
+                markeredgewidth=1.5, zorder=3)
     ax.set_xlabel('Epoch')
     ax.set_ylabel('False positives (count)', color=FP_COUNT_COLOR)
     ax.set_xlim(left=0, right=epochs[-1])
@@ -176,9 +181,10 @@ def main():
     ax.grid(False, axis='x')
 
     ax2 = ax.twinx()
-    ax2.plot(epochs, fp_rates, '-o', color=FP_RATE_COLOR, label='FP rate',
-             markersize=7, linewidth=1.5, markeredgecolor='white',
-             markeredgewidth=1.5, zorder=3)
+    ax2.errorbar(epochs, fp_rate_means, yerr=fp_rate_stds, fmt='-o',
+                 color=FP_RATE_COLOR, label='FP rate', markersize=7,
+                 linewidth=1.5, capsize=3, markeredgecolor='white',
+                 markeredgewidth=1.5, zorder=3)
     ax2.set_ylabel('False-positive rate', color=FP_RATE_COLOR)
     ax2.set_ylim(bottom=0)
     ax2.tick_params(axis='y', labelcolor=FP_RATE_COLOR)
