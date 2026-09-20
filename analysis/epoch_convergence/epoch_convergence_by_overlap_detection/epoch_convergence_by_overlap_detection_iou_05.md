@@ -1,6 +1,8 @@
-# Case-level overlap-based detection (IoU>=0.5) by saved milestone epoch
+# Case-level overlap-based detection (IoU>0.5) by saved milestone epoch
 
-Single preliminary milestones test run: seed 42, 625 images, detection = IoU >= 0.5, noise floor 100 px.
+Single preliminary milestones test run: seed 42, 625 images, detection = IoU > 0.5, noise floor 100 px.
+
+A mass case is detected when the highest single-component IoU between a retained predicted component and the ground-truth mass exceeds the threshold. Off-target blobs are ignored, so this is comparable to centroid detection.
 
 Each table reports case-level false positives computed on normal cases only. A normal case with any prediction is a false alarm.
 

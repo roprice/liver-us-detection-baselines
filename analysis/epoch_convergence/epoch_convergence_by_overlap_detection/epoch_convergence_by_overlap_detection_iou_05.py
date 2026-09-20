@@ -1,8 +1,8 @@
 """Overlap detection quality vs. epoch for the preliminary milestones run
-(seed 42, 625 images) at IoU >= 0.5.
+(seed 42, 625 images) at IoU > 0.5.
 
 Evaluates the six milestone checkpoints (50/100/150/300/500/750) on mass
-*detection* metrics using overlap-based matching with IoU >= 0.5, reported for
+*detection* metrics using overlap-based matching with IoU > 0.5, reported for
 all masses combined and separately for malignant and benign masses.
 
 Per mass grouping, reports case-level (patient triage) recall and
@@ -91,7 +91,7 @@ PLOT_SERIES = [
 
 
 def evaluate_epoch(rows, positive_class="malignant"):
-    """Run overlap (IoU >= 0.5) eval for one checkpoint, return recall and FP rate.
+    """Run overlap (IoU > 0.5) eval for one checkpoint, return recall and FP rate.
 
     A mass-present case is detected when overlap_detection_iou_05_flag is True;
     a Normal case with any retained prediction is a false alarm. All facts come
@@ -124,7 +124,7 @@ def evaluate_epoch(rows, positive_class="malignant"):
 
 
 def main():
-    definition = "IoU >= 0.5"
+    definition = "IoU > 0.5"
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -180,7 +180,7 @@ def main():
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_overlap_detection_iou_05.json"
     payload = {
-        "title": "Case-level overlap-based detection (IoU>=0.5) by saved milestone epoch",
+        "title": "Case-level overlap-based detection (IoU>0.5) by saved milestone epoch",
         "description": ("Single preliminary milestones test run: seed 42, 625 images, "
                         f"detection = {definition}, noise floor {MIN_PRED_AREA} px."),
         "noise_floor_px": MIN_PRED_AREA,
@@ -208,10 +208,15 @@ def main():
 
     # --- Markdown ---
     md_lines = [
-        "# Case-level overlap-based detection (IoU>=0.5) by saved milestone epoch",
+        "# Case-level overlap-based detection (IoU>0.5) by saved milestone epoch",
         "",
         f"Single preliminary milestones test run: seed 42, 625 images, "
         f"detection = {definition}, noise floor {MIN_PRED_AREA} px.",
+        "",
+        "A mass case is detected when the highest single-component IoU between "
+        "a retained predicted component and the ground-truth mass exceeds the "
+        "threshold. Off-target blobs are ignored, so this is comparable to "
+        "centroid detection.",
         "",
         "Each table reports case-level false positives computed on normal cases "
         "only. A normal case with any prediction is a false alarm.",
