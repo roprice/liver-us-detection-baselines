@@ -7,9 +7,9 @@ preserves the CSV's null semantics exactly.
 
 The CSV path is resolved from this file's own location, so callers never pass or
 hard-code a path. Null fields (``mass_dice``, ``mass_iou``,
-``max_retained_component_iou``, and ``detection_flag`` on normal images;
-``normal_false_positive`` on mass-present images) are returned as ``None`` and
-are neither filled nor dropped here.
+``max_retained_component_iou``, and the overlap / centroid detection flags on
+normal images; ``normal_false_positive`` on mass-present images) are returned as
+``None`` and are neither filled nor dropped here.
 
 Usage:
     from analysis.predictions_dataset.load_predictions_dataset import (
@@ -65,8 +65,11 @@ FLOAT_FIELDS = {
 }
 BOOL_FIELDS = {
     "mass_present",
-    "triage_flag",
-    "detection_flag",
+    "triage_detection_flag",
+    "overlap_detection_iou_00_flag",
+    "overlap_detection_iou_02_flag",
+    "overlap_detection_iou_05_flag",
+    "centroid_detection_flag",
     "normal_false_positive",
 }
 NULLABLE_FIELDS = {
@@ -74,7 +77,10 @@ NULLABLE_FIELDS = {
     "mass_dice",
     "mass_iou",
     "max_retained_component_iou",
-    "detection_flag",
+    "overlap_detection_iou_00_flag",
+    "overlap_detection_iou_02_flag",
+    "overlap_detection_iou_05_flag",
+    "centroid_detection_flag",
     "normal_false_positive",
 }
 
@@ -105,8 +111,11 @@ EXPECTED_FIELDS = (
     "mass_dice",
     "mass_iou",
     "max_retained_component_iou",
-    "triage_flag",
-    "detection_flag",
+    "triage_detection_flag",
+    "overlap_detection_iou_00_flag",
+    "overlap_detection_iou_02_flag",
+    "overlap_detection_iou_05_flag",
+    "centroid_detection_flag",
     "normal_false_positive",
     "outcome_category",
 )
@@ -144,8 +153,11 @@ class PredictionRow:
     mass_dice: Optional[float]
     mass_iou: Optional[float]
     max_retained_component_iou: Optional[float]
-    triage_flag: bool
-    detection_flag: Optional[bool]
+    triage_detection_flag: bool
+    overlap_detection_iou_00_flag: Optional[bool]
+    overlap_detection_iou_02_flag: Optional[bool]
+    overlap_detection_iou_05_flag: Optional[bool]
+    centroid_detection_flag: Optional[bool]
     normal_false_positive: Optional[bool]
     outcome_category: str
 

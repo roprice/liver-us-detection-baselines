@@ -78,8 +78,11 @@ FIELDNAMES = (
     "mass_dice",
     "mass_iou",
     "max_retained_component_iou",
-    "triage_flag",
-    "detection_flag",
+    "triage_detection_flag",
+    "overlap_detection_iou_00_flag",
+    "overlap_detection_iou_02_flag",
+    "overlap_detection_iou_05_flag",
+    "centroid_detection_flag",
     "normal_false_positive",
     "outcome_category",
 )
@@ -146,6 +149,45 @@ def max_component_iou(prediction, reference):
         union = int(np.logical_or(component_mask, reference).sum())
         ious.append(intersection / union if union else 0.0)
     return max(ious, default=0.0)
+
+
+def centroid_detection(reference, retained_prediction):
+    """Return whether any GT mass component has a retained predicted centroid
+    within half its equivalent circular diameter (LUNA16-style 2D criterion)."""
+    labeled_reference = label(reference, connectivity=CONNECTIVITY)
+    labeled_prediction = label(retained_prediction, connectivity=CONNECTIVITY)
+    predicted_centroids = []
+    for component in range(1, labeled_prediction.max() + 1):
+        coordinates = np.argwhere(labeled_prediction == component)
+        predicted_centroids.append(coordinates.mean(axis=0))
+
+    if not predicted_centroids:
+        return False
+
+    predicted_centroids = np.asarray(predicted_centroids)
+    for component in range(1, labeled_reference.max() + 1):
+        coordinates = np.argwhere(labeled_reference == component)
+        gt_centroid = coordinates.mean(axis=0)
+        equivalent_diameter = 2 * np.sqrt(len(coordinates) / np.pi)
+        closest_distance = np.linalg.norm(
+            predicted_centroids - gt_centroid, axis=1).min()
+        if closest_distance <= 0.5 * equivalent_diameter:
+            return True
+    return False
+
+
+def overlap_detection(reference, retained_prediction, iou_threshold):
+    """Return whether any GT mass component has IoU >= iou_threshold against the
+    retained prediction (whole retained mask), matching the overlap scripts."""
+    labeled_reference = label(reference, connectivity=CONNECTIVITY)
+    for component in range(1, labeled_reference.max() + 1):
+        component_mask = labeled_reference == component
+        intersection = int(np.logical_and(component_mask, retained_prediction).sum())
+        union = int(np.logical_or(component_mask, retained_prediction).sum())
+        iou = intersection / union if union else 0.0
+        if iou >= iou_threshold:
+            return True
+    return False
 
 
 def load_test_cases():
@@ -302,12 +344,15 @@ def evaluate_case(config, case):
     triage = bool(retained_prediction.any())
 
     if case["mass_present"]:
-        detection = bool(retained_intersection > 0)
-        if detection and not triage:
+        overlap_iou_00 = bool(retained_intersection > 0)
+        overlap_iou_02 = overlap_detection(ground_truth, retained_prediction, 0.2)
+        overlap_iou_05 = overlap_detection(ground_truth, retained_prediction, 0.5)
+        centroid_detected = centroid_detection(ground_truth, retained_prediction)
+        if overlap_iou_00 and not triage:
             raise AssertionError(
                 f"Detection without triage for {case['image_id']} in {config['configuration_id']}"
             )
-        if detection:
+        if overlap_iou_00:
             outcome = "overlapping_detected"
         elif triage:
             outcome = "flagged_without_detection"
@@ -320,7 +365,10 @@ def evaluate_case(config, case):
         )
         normal_false_positive = None
     else:
-        detection = None
+        overlap_iou_00 = None
+        overlap_iou_02 = None
+        overlap_iou_05 = None
+        centroid_detected = None
         outcome = "normal_false_positive" if triage else "normal_true_negative"
         mass_dice = None
         mass_iou = None
@@ -352,8 +400,11 @@ def evaluate_case(config, case):
         "mass_dice": mass_dice,
         "mass_iou": mass_iou,
         "max_retained_component_iou": max_retained_component_iou,
-        "triage_flag": triage,
-        "detection_flag": detection,
+        "triage_detection_flag": triage,
+        "overlap_detection_iou_00_flag": overlap_iou_00,
+        "overlap_detection_iou_02_flag": overlap_iou_02,
+        "overlap_detection_iou_05_flag": overlap_iou_05,
+        "centroid_detection_flag": centroid_detected,
         "normal_false_positive": normal_false_positive,
         "outcome_category": outcome,
     }
