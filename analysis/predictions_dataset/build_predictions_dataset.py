@@ -83,7 +83,9 @@ FIELDNAMES = (
     "overlap_detection_iou_00_flag",
     "overlap_detection_iou_02_flag",
     "overlap_detection_iou_05_flag",
-    "centroid_detection_flag",
+    "centroid_detection_deq_025_flag",
+    "centroid_detection_deq_050_flag",
+    "centroid_detection_deq_100_flag",
     "normal_false_positive",
     "outcome_category",
 )
@@ -152,9 +154,10 @@ def max_component_iou(prediction, reference):
     return max(ious, default=0.0)
 
 
-def centroid_detection(reference, retained_prediction):
+def centroid_detection(reference, retained_prediction, diameter_factor):
     """Return whether any GT mass component has a retained predicted centroid
-    within half its equivalent circular diameter (LUNA16-style 2D criterion)."""
+    within ``diameter_factor`` of its equivalent circular diameter
+    (LUNA16-style 2D centroid criterion)."""
     labeled_reference = label(reference, connectivity=CONNECTIVITY)
     labeled_prediction = label(retained_prediction, connectivity=CONNECTIVITY)
     predicted_centroids = []
@@ -172,7 +175,7 @@ def centroid_detection(reference, retained_prediction):
         equivalent_diameter = 2 * np.sqrt(len(coordinates) / np.pi)
         closest_distance = np.linalg.norm(
             predicted_centroids - gt_centroid, axis=1).min()
-        if closest_distance <= 0.5 * equivalent_diameter:
+        if closest_distance <= diameter_factor * equivalent_diameter:
             return True
     return False
 
@@ -341,7 +344,9 @@ def evaluate_case(config, case):
         )
         overlap_iou_02 = max_retained_component_iou > 0.2
         overlap_iou_05 = max_retained_component_iou > 0.5
-        centroid_detected = centroid_detection(ground_truth, retained_prediction)
+        centroid_deq_025 = centroid_detection(ground_truth, retained_prediction, 0.25)
+        centroid_deq_050 = centroid_detection(ground_truth, retained_prediction, 0.5)
+        centroid_deq_100 = centroid_detection(ground_truth, retained_prediction, 1.0)
         if overlap_iou_00 and not triage:
             raise AssertionError(
                 f"Detection without triage for {case['image_id']} in {config['configuration_id']}"
@@ -360,7 +365,9 @@ def evaluate_case(config, case):
         overlap_iou_00 = None
         overlap_iou_02 = None
         overlap_iou_05 = None
-        centroid_detected = None
+        centroid_deq_025 = None
+        centroid_deq_050 = None
+        centroid_deq_100 = None
         outcome = "normal_false_positive" if triage else "normal_true_negative"
         mass_dice = None
         liver_dice = dice_score(raw_liver_prediction, ground_truth_liver)
@@ -398,7 +405,9 @@ def evaluate_case(config, case):
         "overlap_detection_iou_00_flag": overlap_iou_00,
         "overlap_detection_iou_02_flag": overlap_iou_02,
         "overlap_detection_iou_05_flag": overlap_iou_05,
-        "centroid_detection_flag": centroid_detected,
+        "centroid_detection_deq_025_flag": centroid_deq_025,
+        "centroid_detection_deq_050_flag": centroid_deq_050,
+        "centroid_detection_deq_100_flag": centroid_deq_100,
         "normal_false_positive": normal_false_positive,
         "outcome_category": outcome,
     }

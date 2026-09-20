@@ -70,7 +70,9 @@ BOOL_FIELDS = {
     "overlap_detection_iou_00_flag",
     "overlap_detection_iou_02_flag",
     "overlap_detection_iou_05_flag",
-    "centroid_detection_flag",
+    "centroid_detection_deq_025_flag",
+    "centroid_detection_deq_050_flag",
+    "centroid_detection_deq_100_flag",
     "normal_false_positive",
 }
 NULLABLE_FIELDS = {
@@ -81,7 +83,9 @@ NULLABLE_FIELDS = {
     "overlap_detection_iou_00_flag",
     "overlap_detection_iou_02_flag",
     "overlap_detection_iou_05_flag",
-    "centroid_detection_flag",
+    "centroid_detection_deq_025_flag",
+    "centroid_detection_deq_050_flag",
+    "centroid_detection_deq_100_flag",
     "normal_false_positive",
 }
 
@@ -117,7 +121,9 @@ EXPECTED_FIELDS = (
     "overlap_detection_iou_00_flag",
     "overlap_detection_iou_02_flag",
     "overlap_detection_iou_05_flag",
-    "centroid_detection_flag",
+    "centroid_detection_deq_025_flag",
+    "centroid_detection_deq_050_flag",
+    "centroid_detection_deq_100_flag",
     "normal_false_positive",
     "outcome_category",
 )
@@ -160,7 +166,9 @@ class PredictionRow:
     overlap_detection_iou_00_flag: Optional[bool]
     overlap_detection_iou_02_flag: Optional[bool]
     overlap_detection_iou_05_flag: Optional[bool]
-    centroid_detection_flag: Optional[bool]
+    centroid_detection_deq_025_flag: Optional[bool]
+    centroid_detection_deq_050_flag: Optional[bool]
+    centroid_detection_deq_100_flag: Optional[bool]
     normal_false_positive: Optional[bool]
     outcome_category: str
 
