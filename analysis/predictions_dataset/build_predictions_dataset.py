@@ -76,6 +76,7 @@ FIELDNAMES = (
     "retained_intersection_area_px",
     "retained_union_area_px",
     "mass_dice",
+    "liver_dice",
     "mass_iou",
     "max_retained_component_iou",
     "triage_detection_flag",
@@ -228,6 +229,7 @@ def load_test_cases():
         reference_path = LABELS_TS / f"{case_id}.png"
         reference = read_mask(reference_path)
         ground_truth_mass = reference == MASS_VALUE
+        ground_truth_liver = reference >= 1
         mass_present = pathology != "normal"
         if mass_present != bool(ground_truth_mass.any()):
             raise InputValidationError(
@@ -243,6 +245,7 @@ def load_test_cases():
             "reference_path": relative_path(reference_path),
             "reference_shape": reference.shape,
             "ground_truth_mass": ground_truth_mass,
+            "ground_truth_liver": ground_truth_liver,
             "mass_present": mass_present,
         })
     return cases
@@ -334,7 +337,9 @@ def evaluate_case(config, case):
         )
 
     ground_truth = case["ground_truth_mass"]
+    ground_truth_liver = case["ground_truth_liver"]
     raw_prediction = prediction == MASS_VALUE
+    raw_liver_prediction = prediction >= 1
     retained_prediction = retained_mass_mask(raw_prediction)
 
     raw_intersection = int(np.logical_and(raw_prediction, ground_truth).sum())
@@ -359,6 +364,7 @@ def evaluate_case(config, case):
         else:
             outcome = "unflagged"
         mass_dice = dice_score(raw_prediction, ground_truth)
+        liver_dice = dice_score(raw_liver_prediction, ground_truth_liver)
         mass_iou = iou_score(raw_prediction, ground_truth)
         max_retained_component_iou = max_component_iou(
             retained_prediction, ground_truth
@@ -371,6 +377,7 @@ def evaluate_case(config, case):
         centroid_detected = None
         outcome = "normal_false_positive" if triage else "normal_true_negative"
         mass_dice = None
+        liver_dice = dice_score(raw_liver_prediction, ground_truth_liver)
         mass_iou = None
         max_retained_component_iou = None
         normal_false_positive = triage
@@ -398,6 +405,7 @@ def evaluate_case(config, case):
         "retained_intersection_area_px": retained_intersection,
         "retained_union_area_px": retained_union,
         "mass_dice": mass_dice,
+        "liver_dice": liver_dice,
         "mass_iou": mass_iou,
         "max_retained_component_iou": max_retained_component_iou,
         "triage_detection_flag": triage,

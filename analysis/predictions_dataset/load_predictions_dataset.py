@@ -60,6 +60,7 @@ INT_FIELDS = {
 }
 FLOAT_FIELDS = {
     "mass_dice",
+    "liver_dice",
     "mass_iou",
     "max_retained_component_iou",
 }
@@ -109,6 +110,7 @@ EXPECTED_FIELDS = (
     "retained_intersection_area_px",
     "retained_union_area_px",
     "mass_dice",
+    "liver_dice",
     "mass_iou",
     "max_retained_component_iou",
     "triage_detection_flag",
@@ -151,6 +153,7 @@ class PredictionRow:
     retained_intersection_area_px: int
     retained_union_area_px: int
     mass_dice: Optional[float]
+    liver_dice: Optional[float]
     mass_iou: Optional[float]
     max_retained_component_iou: Optional[float]
     triage_detection_flag: bool
