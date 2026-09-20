@@ -5,17 +5,11 @@
 __pycache__/
 *.pyc
 
-# Runtime artifacts (produced on the GPU server, downloaded via scp/tar)
-logs/
-predictions/
 
-# Raw data (downloaded from Zenodo, not tracked)
-data/source/AUL/
-data/source/SMC-LUD/
+nnUNet_results
+nnUNet_raw
+nnUNet_preprocessed
 
-# nnU-Net native directories (created on the GPU server)
-nnUNet_raw/
-nnUNet_preprocessed/
-nnUNet_results/
+predictions
 
-AGENTS.md
+SMC-LUD
