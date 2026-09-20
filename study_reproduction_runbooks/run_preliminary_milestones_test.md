@@ -2,7 +2,7 @@
 
 This document lets you manually reproduce the first test in this study, which saves checkpoints across a sweep of intervals.
 
-Early checkpoints reflect a learning rate schedule tuned for 1000 epochs; they unlike independent shorter training runs. Still, the sweep reveals where Dice gains plateau under this schedule, which is sufficient to set an epoch budget for subsequent experiments.
+Early checkpoints reflect a learning rate schedule tuned for 1000 epochs, so they're not comparable to independent shorter training runs. Still, the sweep reveals where Dice gains plateau under this schedule, which is sufficient to set an epoch budget for subsequent experiments.
 
 Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
 
@@ -31,24 +31,17 @@ All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM
 
 Once you have provisioned the instance and connected to it by SSH, run the following commands from a single shell. During the training in step 10, you can open a new shell if you wish to monitor progress; that won't be logged.
 
-### 1. Configure prompt and history
+### 1. Configure prompt (optional)
 
 ```sh
-# Capture every subsequent command in ~/.bash_history 
-export PROMPT_COMMAND='history -a'
-
-# More visible prompt with a timestamp, save each command to disk 
+# More visible prompt with a timestamp so no manual steps are missed
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
-export HISTTIMEFORMAT='%F %T '
-export PROMPT_COMMAND='history -a'
 PROMPTEOF
-
-# Apply to current shell (new shells pick it up from ~/.bashrc)
 source ~/.bashrc
 ```
 
-Run this before any other command so command history is captured from the very start of the session.
+
 
 ### 2. Install system dependencies
 
@@ -219,14 +212,15 @@ cat logs/training/training_times.csv  # header + 3 rows
 ls logs/inference/  # per-image, summary, settings CSVs/JSON
 ```
 
+Note: this experiment doesn't put logs into `experiment_logs/<experiment_name>/logs`, as do subsequent experiments. Reorganize `logs` into `experiment_logs/milestones_pilot/logs` after downloading so that analysis scripts work without path changes.
+
 ## Download results
 
-Rather than selectively downloading, download the full set of evidence needed to reconstruct and audit the run: the repo (code plus the logs and terminal output it accumulated during the run), all three nnU-Net working directories, and the shell history of every command actually executed. SSH key material is deliberately excluded.
+Download the full set of evidence needed to reconstruct and audit the run: the repo, logs, and all three nnU-Net working directories.
 
 ```sh
 # On the GPU server
 cd ~
-
 tar czf preliminary_milestones_full.tar.gz \
   liver-us-detection-baselines/ \
   nnUNet_raw/ \
@@ -234,7 +228,7 @@ tar czf preliminary_milestones_full.tar.gz \
   nnUNet_results/ \
 ```
 
-Then, on the Mac:
+Then, on your local computer:
 
 ```sh
 cd ~/Projects/liver-us-detection-baselines
@@ -242,39 +236,3 @@ cd ~/Projects/liver-us-detection-baselines
 scp root@<server-ip>:~/preliminary_milestones_full.tar.gz /tmp/
 tar xzf /tmp/preliminary_milestones_full.tar.gz
 ```
-
-## What happens next
-
-Evaluate the predictions locally. The runner already produced the GPU inference benchmark. To record comparable CPU inference numbers, rerun the benchmark script later on the Mac with the same checkpoints, images, and settings, changing only `--device` and `--output-dir`:
-
-```sh
-python training/benchmark_gpu_inference.py \
-  --nnunet-raw "$nnUNet_raw" \
-  --dataset-name Dataset001_AUL \
-  --dataset-id 1 \
-  --seeds 42 43 44 \
-  --trainer-prefix nnUNetTrainerMilestones_seed \
-  --checkpoint checkpoint_final.pth \
-  --device cpu \
-  --output-dir logs/inference_cpu
-```
-
-## Environment variable notes
-
-nnU-Net environment variables do not persist between SSH sessions unless written to `.bashrc` (step 6). If you reconnect and did not run that step, re-export before running anything:
-
-```sh
-export nnUNet_raw="$HOME/nnUNet_raw"
-export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
-export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
-```
-
-## Spot/preemptible instance notes for Verda.com
-
-To train on a cheaper spot instance on Verda.com, as of September 2026, assumes the risk of the instance being taken. The runner passes `--c` to `nnUNetv2_train`, so training resumes from the last checkpoint if preempted. Re-export environment variables (or rely on `.bashrc`) and rerun the same command. Preprocessing is skipped if already done. Use the same GPU type across all three seeds for consistency.
-
-
-## Data deletion
-
-Final step - be sure to delete not just the instance but the module that the data is saved on.
