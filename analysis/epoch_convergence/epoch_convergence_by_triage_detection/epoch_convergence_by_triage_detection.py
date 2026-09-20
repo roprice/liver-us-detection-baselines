@@ -218,8 +218,10 @@ def main():
         f"{MIN_PRED_AREA} px.",
         "",
         "A mass-present case is detected if the model predicts any retained mass "
-        "anywhere on the image. A Normal case with any prediction is a false "
-        "alarm.",
+        "anywhere on the image.",
+        "",
+        "Each table reports case-level false positives computed on normal cases "
+        "only. A normal case with any prediction is a false alarm.",
         "",
         "No error bars (single seed).",
         "",
@@ -230,7 +232,7 @@ def main():
                          ("Benign masses", benign_metrics)]:
         md_lines.append(f"## {title}")
         md_lines.append("")
-        md_lines.append("| Epoch | Detection | False positive rate |")
+        md_lines.append("| Epoch | Detection | Normal cases FP rate |")
         md_lines.append("|------:|----------:|-------------------:|")
         for i, ep in enumerate(epochs):
             md_lines.append(

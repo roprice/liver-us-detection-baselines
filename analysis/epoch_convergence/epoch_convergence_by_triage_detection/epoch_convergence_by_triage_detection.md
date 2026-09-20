@@ -2,13 +2,15 @@
 
 Single preliminary milestones test run: seed 42, 625 images, triage = any retained mass (no overlap required), noise floor 100 px.
 
-A mass-present case is detected if the model predicts any retained mass anywhere on the image. A Normal case with any prediction is a false alarm.
+A mass-present case is detected if the model predicts any retained mass anywhere on the image.
+
+Each table reports case-level false positives computed on normal cases only. A normal case with any prediction is a false alarm.
 
 No error bars (single seed).
 
 ## All masses
 
-| Epoch | Detection | False positive rate |
+| Epoch | Detection | Normal cases FP rate |
 |------:|----------:|-------------------:|
 | 50 | 0.737 | 0.000 |
 | 100 | 0.779 | 0.000 |
@@ -19,7 +21,7 @@ No error bars (single seed).
 
 ## Malignant masses
 
-| Epoch | Detection | False positive rate |
+| Epoch | Detection | Normal cases FP rate |
 |------:|----------:|-------------------:|
 | 50 | 0.908 | 0.000 |
 | 100 | 0.938 | 0.000 |
@@ -30,7 +32,7 @@ No error bars (single seed).
 
 ## Benign masses
 
-| Epoch | Detection | False positive rate |
+| Epoch | Detection | Normal cases FP rate |
 |------:|----------:|-------------------:|
 | 50 | 0.367 | 0.000 |
 | 100 | 0.433 | 0.000 |
