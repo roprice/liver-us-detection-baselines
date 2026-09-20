@@ -34,7 +34,11 @@ PREDICTIONS_ROOT = PROJECT_ROOT / "predictions"
 OUTPUT_PATH = SCRIPT_DIR / "predictions_dataset.csv"
 
 MASS_VALUE = 2
-MIN_PRED_AREA = 100
+# Relative noise floor: retain predicted mass components >= 0.03% of image area.
+# Chosen because 0.03% is the largest relative floor that (on the preliminary
+# seed-42 set) drops zero true detections under triage, centroid 0.5, or overlap
+# 0.2, while matching the prior ~100 px floor on average-sized images.
+MIN_PRED_AREA_FRACTION = 0.0003
 CONNECTIVITY = 2  # Full connectivity for 2D masks: 8-connected components.
 VALID_LABELS = {0, 1, 2}
 
@@ -117,12 +121,14 @@ def read_mask(path):
 
 
 def retained_mass_mask(raw_mass_mask):
-    """Retain 8-connected predicted mass components of at least 100 pixels."""
+    """Retain 8-connected predicted mass components at/above the relative
+    noise floor (a fraction of image area)."""
+    min_area = int(MIN_PRED_AREA_FRACTION * raw_mass_mask.size)
     components = label(raw_mass_mask, connectivity=CONNECTIVITY)
     retained = np.zeros_like(raw_mass_mask, dtype=bool)
     for component in range(1, components.max() + 1):
         component_mask = components == component
-        if int(component_mask.sum()) >= MIN_PRED_AREA:
+        if int(component_mask.sum()) >= min_area:
             retained[component_mask] = True
     return retained
 
