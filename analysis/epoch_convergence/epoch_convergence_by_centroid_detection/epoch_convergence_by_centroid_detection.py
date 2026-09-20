@@ -216,8 +216,10 @@ def main():
         f"diameter, noise floor {MIN_PRED_AREA} px.",
         "",
         "A mass case is detected when the closest retained predicted centroid "
-        "lies within half the ground-truth mass's equivalent circular diameter. "
-        "A Normal case with any retained prediction is a false alarm.",
+        "lies within half the ground-truth mass's equivalent circular diameter.",
+        "",
+        "Each table reports case-level false positives computed on normal cases "
+        "only. A normal case with any prediction is a false alarm.",
         "",
         "No error bars (single seed).",
         "",
@@ -228,7 +230,7 @@ def main():
                          ("Benign masses", benign_metrics)]:
         md_lines.append(f"## {title}")
         md_lines.append("")
-        md_lines.append("| Epoch | Detection | False positive rate |")
+        md_lines.append("| Epoch | Detection | Normal cases FP rate |")
         md_lines.append("|------:|----------:|-------------------:|")
         for i, ep in enumerate(epochs):
             md_lines.append(
