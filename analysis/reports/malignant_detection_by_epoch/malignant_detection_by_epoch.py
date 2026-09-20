@@ -81,7 +81,7 @@ def load_recall(rel_path):
     path = ANALYSIS_ROOT / rel_path
     with open(path) as f:
         data = json.load(f)
-    return data["epochs"], data["malignant"]["case_recall"]
+    return data["epochs"], data["malignant"]["Detection"]
 
 
 def main():
