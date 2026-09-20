@@ -1,0 +1,72 @@
+{
+  "title": "Case-level centroid-based detection (deq=1) by saved milestone epoch",
+  "description": "Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 1x GT equivalent diameter, noise floor 100 px.",
+  "noise_floor_px": 100,
+  "centroid_definition": "predicted centroid within 1x GT equivalent diameter",
+  "deq_factor": 1.0,
+  "dataset_snapshot_id": "c938647657d7",
+  "seed": 42,
+  "images": 625,
+  "epochs": [
+    50,
+    100,
+    150,
+    300,
+    500,
+    750
+  ],
+  "combined": {
+    "Detection": [
+      0.7157894736842105,
+      0.7473684210526316,
+      0.8421052631578947,
+      0.8315789473684211,
+      0.7789473684210526,
+      0.8526315789473684
+    ],
+    "False positive rate": [
+      0.0,
+      0.0,
+      0.13333333333333333,
+      0.2,
+      0.13333333333333333,
+      0.06666666666666667
+    ]
+  },
+  "malignant": {
+    "Detection": [
+      0.8923076923076924,
+      0.9230769230769231,
+      0.9692307692307692,
+      0.9692307692307692,
+      0.9230769230769231,
+      0.9692307692307692
+    ],
+    "False positive rate": [
+      0.0,
+      0.0,
+      0.13333333333333333,
+      0.2,
+      0.13333333333333333,
+      0.06666666666666667
+    ]
+  },
+  "benign": {
+    "Detection": [
+      0.3333333333333333,
+      0.36666666666666664,
+      0.5666666666666667,
+      0.5333333333333333,
+      0.4666666666666667,
+      0.6
+    ],
+    "False positive rate": [
+      0.0,
+      0.0,
+      0.13333333333333333,
+      0.2,
+      0.13333333333333333,
+      0.06666666666666667
+    ]
+  }
+}
