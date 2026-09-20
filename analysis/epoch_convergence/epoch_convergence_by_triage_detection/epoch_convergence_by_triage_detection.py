@@ -130,8 +130,8 @@ def evaluate_epoch(rows, positive_class="malignant"):
     """Run triage eval for one checkpoint, return case recall and FP rate."""
     ctp, cfp, cfn, n_normal = evaluate_triage(rows, positive_class)
 
-    crec = ctp / (ctp + cfn) if (ctp + cfn) > 0 else 0.0
-    cfp_rate = cfp / n_normal if n_normal > 0 else 0.0
+    crec = ctp / (ctp + cfn) if (ctp + cfn) > 0 else float('nan')
+    cfp_rate = cfp / n_normal if n_normal > 0 else float('nan')
 
     return crec, cfp_rate
 

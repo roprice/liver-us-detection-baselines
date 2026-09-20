@@ -117,8 +117,8 @@ def evaluate_epoch(rows, positive_class="malignant"):
             if row.normal_false_positive:
                 fp += 1
 
-    case_recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    case_fp_rate = fp / n_normal if n_normal > 0 else 0.0
+    case_recall = tp / (tp + fn) if (tp + fn) > 0 else float('nan')
+    case_fp_rate = fp / n_normal if n_normal > 0 else float('nan')
 
     return case_recall, case_fp_rate
 
