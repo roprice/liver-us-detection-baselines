@@ -177,20 +177,6 @@ def centroid_detection(reference, retained_prediction):
     return False
 
 
-def overlap_detection(reference, retained_prediction, iou_threshold):
-    """Return whether any GT mass component has IoU >= iou_threshold against the
-    retained prediction (whole retained mask), matching the overlap scripts."""
-    labeled_reference = label(reference, connectivity=CONNECTIVITY)
-    for component in range(1, labeled_reference.max() + 1):
-        component_mask = labeled_reference == component
-        intersection = int(np.logical_and(component_mask, retained_prediction).sum())
-        union = int(np.logical_or(component_mask, retained_prediction).sum())
-        iou = intersection / union if union else 0.0
-        if iou >= iou_threshold:
-            return True
-    return False
-
-
 def load_test_cases():
     """Load test references and the split/pathology mapping."""
     if not LABELS_TS.is_dir():
@@ -350,8 +336,11 @@ def evaluate_case(config, case):
 
     if case["mass_present"]:
         overlap_iou_00 = bool(retained_intersection > 0)
-        overlap_iou_02 = overlap_detection(ground_truth, retained_prediction, 0.2)
-        overlap_iou_05 = overlap_detection(ground_truth, retained_prediction, 0.5)
+        max_retained_component_iou = max_component_iou(
+            retained_prediction, ground_truth
+        )
+        overlap_iou_02 = max_retained_component_iou >= 0.2
+        overlap_iou_05 = max_retained_component_iou >= 0.5
         centroid_detected = centroid_detection(ground_truth, retained_prediction)
         if overlap_iou_00 and not triage:
             raise AssertionError(
@@ -366,9 +355,6 @@ def evaluate_case(config, case):
         mass_dice = dice_score(raw_prediction, ground_truth)
         liver_dice = dice_score(raw_liver_prediction, ground_truth_liver)
         mass_iou = iou_score(raw_prediction, ground_truth)
-        max_retained_component_iou = max_component_iou(
-            retained_prediction, ground_truth
-        )
         normal_false_positive = None
     else:
         overlap_iou_00 = None
