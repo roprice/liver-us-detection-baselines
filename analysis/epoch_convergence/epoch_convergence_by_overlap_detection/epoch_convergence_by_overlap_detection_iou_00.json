@@ -3,7 +3,7 @@
   "description": "Single preliminary milestones test run: seed 42, 625 images, detection = overlap (IoU > 0), noise floor 100 px.",
   "noise_floor_px": 100,
   "detection_definition": "overlap (IoU > 0)",
-  "dataset_snapshot_id": "6f3f562da001",
+  "dataset_snapshot_id": "27678df89947",
   "seed": 42,
   "images": 625,
   "epochs": [
