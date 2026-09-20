@@ -3,7 +3,7 @@
   "description": "Single preliminary milestones test run: seed 42, 625 images, centroid detection = predicted centroid within 0.5x GT equivalent diameter, noise floor 100 px.",
   "noise_floor_px": 100,
   "centroid_definition": "predicted centroid within 0.5x GT equivalent diameter",
-  "dataset_snapshot_id": "6f3f562da001",
+  "dataset_snapshot_id": "5db335362cb6",
   "seed": 42,
   "images": 625,
   "epochs": [
