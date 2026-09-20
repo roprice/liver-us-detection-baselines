@@ -9,13 +9,16 @@ triage is a single case-level binary:
   - Normal case (no mass): flagged -> false alarm, not flagged -> correct.
 
 Because there is no overlap requirement, an IoU threshold does not apply. The
-only filter is the 100 px noise floor shared with the other detection scripts.
+only filter is the 100 px noise floor, already baked into the triage_flag column
+of the predictions dataset.
 
 Reports, per milestone checkpoint and per mass grouping (combined / malignant /
-benign): case-level recall, precision, F1, and false-positive rate over Normal
-cases.
+benign): case-level recall and false-positive rate over Normal cases.
 
-Single-seed run (seed 42, 625 images, joint-selected checkpoints); no error bars.
+Reads the canonical predictions dataset (analysis/predictions_dataset) rather
+than the raw masks; triage_flag and pathology come from there.
+
+Single-seed run (seed 42, 625 images); no error bars.
 
 Run from project root:
     python analysis/epoch_convergence/epoch_convergence_by_triage_detection/epoch_convergence_by_triage_detection.py
@@ -23,6 +26,7 @@ Run from project root:
 
 import json
 import os
+import sys
 
 import numpy as np
 import matplotlib
@@ -30,18 +34,18 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from pathlib import Path
-from PIL import Image
-from skimage.measure import label
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# --- Detection config (mirrors the overlap detection script) ---
-LABELS_TS = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/labelsTs"
-CASE_MAPPING = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/case_mapping.json"
+# Make the project root importable so the predictions-dataset loader can be
+# used regardless of the current working directory.
+sys.path.insert(0, str(PROJECT_ROOT))
+from analysis.predictions_dataset.load_predictions_dataset import (
+    load_predictions_dataset,
+)
 
-MASS_VALUE = 2
-MIN_PRED_AREA = 100  # noise floor (px^2), same as the detection script
+MIN_PRED_AREA = 100  # noise floor (px^2); already applied when the dataset was built
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -65,10 +69,10 @@ plt.rcParams.update({
     'axes.spines.right': True,
 })
 
-PRED_ROOT = PROJECT_ROOT / "predictions/preliminary_milestones_test/seed42"
 OUT_DIR = SCRIPT_DIR
 
-# Folder name -> epoch number.
+# Milestone checkpoints to report (epoch50..epoch750), excluding the snapshot
+# best/best_mass/final checkpoints which have no fixed epoch.
 EPOCH_DIRS = [
     ("predictions_milestones_625images_seed42_epoch50", 50),
     ("predictions_milestones_625images_seed42_epoch100", 100),
@@ -80,8 +84,6 @@ EPOCH_DIRS = [
 
 # Metric key -> (legend label, color).
 METRICS = {
-    "case_f1":          ("Case F1",          "#eb6834"),
-    "case_precision":   ("Case precision",   "#f2a17e"),
     "case_recall":      ("Case recall",      "#f5c0aa"),
     "case_fp_rate":     ("Case FP rate",     "#3b6d11"),
 }
@@ -93,145 +95,115 @@ PLOT_SERIES = [
 ]
 
 
-def get_class_map():
-    """Build filename -> class mapping from case_mapping.json (test split)."""
-    if not CASE_MAPPING.exists():
-        print(f"WARNING: {CASE_MAPPING} not found")
-        return {}
-    with open(CASE_MAPPING) as f:
-        mapping = json.load(f)
-    return {e["case_name"] + ".png": e["category"].lower()
-            for e in mapping if e["split"] == "test"}
-
-
-def retained_mass_present(pred_mask, min_pred_area):
-    """Whether the prediction has any mass component >= min_pred_area."""
-    pred_mass = (pred_mask == MASS_VALUE).astype(np.uint8)
-    pred_labeled = label(pred_mass)
-    n_pred = pred_labeled.max()
-    for p in range(1, n_pred + 1):
-        if (pred_labeled == p).sum() >= min_pred_area:
-            return True
-    return False
-
-
-def evaluate_triage(pred_dir, test_files, class_map, min_pred_area,
-                    positive_class="malignant"):
+def evaluate_triage(rows, positive_class):
     """Return (tp, fp, fn, n_normal) at case level for triage detection.
 
-    A mass-present case is detected if the model predicts any retained mass
-    anywhere on the image (no overlap required). A Normal case with any retained
-    prediction is a false alarm.
+    A mass-present case is detected when triage_flag is True; a Normal case
+    with triage_flag True is a false alarm. All facts come from the loaded
+    predictions dataset, not the raw masks.
     """
     tp = fn = 0
     fp = 0
     n_normal = 0
 
-    for fname in test_files:
-        cls = class_map.get(fname, "unknown")
-        pred_path = pred_dir / fname
-        if not pred_path.exists():
-            continue
-        pred = np.array(Image.open(pred_path))
-        flagged = retained_mass_present(pred, min_pred_area)
+    for row in rows:
+        flagged = row.triage_flag
+        if positive_class == "combined":
+            is_positive = row.pathology in ("malignant", "benign")
+        else:
+            is_positive = row.pathology == positive_class
 
-        is_positive = (
-            cls in ("malignant", "benign")
-            if positive_class == "combined"
-            else cls == positive_class
-        )
         if is_positive:
             if flagged:
                 tp += 1
             else:
                 fn += 1
-        elif cls == "normal":
+        elif row.pathology == "normal":
             n_normal += 1
             if flagged:
                 fp += 1
 
-    return int(tp), int(fp), int(fn), int(n_normal)
+    return tp, fp, fn, n_normal
 
 
-def evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant"):
-    """Run triage eval for one checkpoint, return the 4 metrics."""
-    ctp, cfp, cfn, n_normal = evaluate_triage(
-        pred_dir, test_files, class_map, MIN_PRED_AREA,
-        positive_class=positive_class)
+def evaluate_epoch(rows, positive_class="malignant"):
+    """Run triage eval for one checkpoint, return case recall and FP rate."""
+    ctp, cfp, cfn, n_normal = evaluate_triage(rows, positive_class)
 
-    cprec = ctp / (ctp + cfp) if (ctp + cfp) > 0 else 0.0
     crec = ctp / (ctp + cfn) if (ctp + cfn) > 0 else 0.0
-    cf1 = 2 * cprec * crec / (cprec + crec) if (cprec + crec) > 0 else 0.0
     cfp_rate = cfp / n_normal if n_normal > 0 else 0.0
 
-    return {
-        "case_f1": cf1,
-        "case_precision": cprec,
-        "case_recall": crec,
-        "case_fp_rate": cfp_rate,
-    }
+    return crec, cfp_rate
 
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    class_map = get_class_map()
-    if not LABELS_TS.exists():
-        print(f"ERROR: {LABELS_TS} not found")
-        return
-
-    test_files = sorted(f for f in os.listdir(LABELS_TS) if f.endswith(".png"))
-    print(f"Test set: {len(test_files)} files, triage = any retained mass, "
-          f"noise floor {MIN_PRED_AREA} px")
+    data = load_predictions_dataset()
+    print(f"Loaded predictions dataset: {data.snapshot_id}, "
+          f"{len(data.rows)} rows")
 
     epochs = []
     metrics = {key: [] for key in METRICS}
     benign_metrics = {key: [] for key in METRICS}
     combined_metrics = {key: [] for key in METRICS}
     for folder_name, epoch in EPOCH_DIRS:
-        pred_dir = PRED_ROOT / folder_name
-        if not pred_dir.exists():
-            print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
+        rows = [r for r in data.rows if r.configuration_id == folder_name]
+        if not rows:
+            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
             continue
-        r = evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant")
-        rb = evaluate_epoch(pred_dir, test_files, class_map, positive_class="benign")
-        rc = evaluate_epoch(pred_dir, test_files, class_map, positive_class="combined")
+        crec, cfp = evaluate_epoch(rows, positive_class="malignant")
+        rb_rec, rb_fp = evaluate_epoch(rows, positive_class="benign")
+        rc_rec, rc_fp = evaluate_epoch(rows, positive_class="combined")
         epochs.append(epoch)
-        for key in METRICS:
-            metrics[key].append(r[key])
-            benign_metrics[key].append(rb[key])
-            combined_metrics[key].append(rc[key])
+        metrics["case_recall"].append(crec)
+        metrics["case_fp_rate"].append(cfp)
+        benign_metrics["case_recall"].append(rb_rec)
+        benign_metrics["case_fp_rate"].append(rb_fp)
+        combined_metrics["case_recall"].append(rc_rec)
+        combined_metrics["case_fp_rate"].append(rc_fp)
 
     if not epochs:
         print("No per-epoch predictions found, exiting")
         return
 
     # --- Terminal tables ---
-    header = "Epoch | CF1 | CPrec | CRec | CFP"
-    sep = "------|------|-------|------|-----"
+    header = "Epoch | CRec | CFP"
+    sep = "------|------|-----"
     for title, table in [("All masses", combined_metrics),
                          ("Malignant", metrics),
                          ("Benign", benign_metrics)]:
         print(f"\n{title} — {header}")
         print(f"{'':>7}  {sep}")
         for i, ep in enumerate(epochs):
-            print(f"{ep:>5} | {table['case_f1'][i]:.3f} | "
-                  f"{table['case_precision'][i]:.3f} | "
-                  f"{table['case_recall'][i]:.3f} | "
+            print(f"{ep:>5} | {table['case_recall'][i]:.3f} | "
                   f"{table['case_fp_rate'][i]:.3f}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_triage_detection.json"
     payload = {
+        "title": "Case-level triage-based detection by saved milestone epoch",
+        "description": ("Single preliminary milestones test run: seed 42, 625 images, "
+                        "triage = any retained mass (no overlap required), "
+                        f"noise floor {MIN_PRED_AREA} px."),
         "noise_floor_px": MIN_PRED_AREA,
         "triage_definition": "any retained mass (no overlap required)",
+        "dataset_snapshot_id": data.snapshot_id,
         "seed": 42,
         "images": 625,
-        "checkpoint_selection": "joint",
         "epochs": epochs,
-        "combined": {key: combined_metrics[key] for key in METRICS},
-        "malignant": {key: metrics[key] for key in METRICS},
-        "benign": {key: benign_metrics[key] for key in METRICS},
+        "combined": {
+            "Detection": combined_metrics["case_recall"],
+            "False positive rate": combined_metrics["case_fp_rate"],
+        },
+        "malignant": {
+            "Detection": metrics["case_recall"],
+            "False positive rate": metrics["case_fp_rate"],
+        },
+        "benign": {
+            "Detection": benign_metrics["case_recall"],
+            "False positive rate": benign_metrics["case_fp_rate"],
+        },
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -239,11 +211,11 @@ def main():
 
     # --- Markdown ---
     md_lines = [
-        "# Triage detection vs. epoch",
+        "# Case-level triage-based detection by saved milestone epoch",
         "",
-        f"Single preliminary milestones run: seed 42, 625 images, joint-selected "
-        f"checkpoints, triage = any retained mass (no overlap required), noise "
-        f"floor {MIN_PRED_AREA} px.",
+        f"Single preliminary milestones test run: seed 42, 625 images, "
+        f"triage = any retained mass (no overlap required), noise floor "
+        f"{MIN_PRED_AREA} px.",
         "",
         "A mass-present case is detected if the model predicts any retained mass "
         "anywhere on the image. A Normal case with any prediction is a false "
@@ -258,13 +230,11 @@ def main():
                          ("Benign masses", benign_metrics)]:
         md_lines.append(f"## {title}")
         md_lines.append("")
-        md_lines.append("| Epoch | Case F1 | Case Prec | Case Rec | Case FP rate |")
-        md_lines.append("|------:|--------:|----------:|---------:|-------------:|")
+        md_lines.append("| Epoch | Detection | False positive rate |")
+        md_lines.append("|------:|----------:|-------------------:|")
         for i, ep in enumerate(epochs):
             md_lines.append(
-                f"| {ep} | {table['case_f1'][i]:.3f} | "
-                f"{table['case_precision'][i]:.3f} | "
-                f"{table['case_recall'][i]:.3f} | "
+                f"| {ep} | {table['case_recall'][i]:.3f} | "
                 f"{table['case_fp_rate'][i]:.3f} |"
             )
         md_lines.append("")
