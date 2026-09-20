@@ -213,13 +213,16 @@ def main():
         f"Single preliminary milestones test run: seed 42, 625 images, "
         f"detection = {definition}, noise floor {MIN_PRED_AREA} px.",
         "",
+        "Each table reports case-level false positives computed on normal cases "
+        "only. A normal case with any prediction is a false alarm.",
+        "",
         "No error bars (single seed).",
         "",
     ]
 
     md_lines.append("## All masses")
     md_lines.append("")
-    md_lines.append("| Epoch | Detection | False positive rate |")
+    md_lines.append("| Epoch | Detection | Normal cases FP rate |")
     md_lines.append("|------:|----------:|-------------------:|")
     for i, ep in enumerate(epochs):
         md_lines.append(
@@ -230,7 +233,7 @@ def main():
 
     md_lines.append("## Malignant masses")
     md_lines.append("")
-    md_lines.append("| Epoch | Detection | False positive rate |")
+    md_lines.append("| Epoch | Detection | Normal cases FP rate |")
     md_lines.append("|------:|----------:|-------------------:|")
     for i, ep in enumerate(epochs):
         md_lines.append(
@@ -241,7 +244,7 @@ def main():
 
     md_lines.append("## Benign masses")
     md_lines.append("")
-    md_lines.append("| Epoch | Detection | False positive rate |")
+    md_lines.append("| Epoch | Detection | Normal cases FP rate |")
     md_lines.append("|------:|----------:|-------------------:|")
     for i, ep in enumerate(epochs):
         md_lines.append(
