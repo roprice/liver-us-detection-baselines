@@ -114,10 +114,10 @@ def main():
         return
 
     # --- Terminal table ---
-    print("\nEpoch | FP count | FP rate")
-    print("------|----------|---------")
+    print("\nEpoch | FP rate | FP count | Seed 42")
+    print("------|---------|----------|---------")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>5} | {fp_counts[i]:>8} | {fp_rates[i]:.4f}")
+        print(f"{ep:>5} | {fp_rates[i]:.4f} | {fp_counts[i]:>8} | {fp_counts[i]}/{n_normal}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_false_positives.json"
@@ -127,6 +127,7 @@ def main():
         "normal_cases": n_normal,
         "dataset_snapshot_id": data.snapshot_id,
         "epochs": epochs,
+        "seed_42": [f"{c}/{n_normal}" for c in fp_counts],
         "fp_count": fp_counts,
         "fp_rate": fp_rates,
     }
@@ -149,11 +150,11 @@ def main():
         "",
         f"Normal test cases: {n_normal}.",
         "",
-        "| Epoch | False positives | FP rate |",
-        "|------:|----------------:|--------:|",
+        "| Epoch | FP rate | False positives | Seed 42 |",
+        "|------:|--------:|----------------:|--------:|",
     ]
     for i, ep in enumerate(epochs):
-        md_lines.append(f"| {ep} | {fp_counts[i]} | {fp_rates[i]:.4f} |")
+        md_lines.append(f"| {ep} | {fp_rates[i]:.4f} | {fp_counts[i]} | {fp_counts[i]}/{n_normal} |")
     md_lines.append("")
     md_path = OUT_DIR / "epoch_convergence_by_false_positives.md"
     with open(md_path, "w") as f:

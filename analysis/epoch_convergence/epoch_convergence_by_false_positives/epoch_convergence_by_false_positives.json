@@ -2,7 +2,7 @@
   "seed": 42,
   "images": 625,
   "normal_cases": 15,
-  "dataset_snapshot_id": "05b00c5f5bcc",
+  "dataset_snapshot_id": "6f3f562da001",
   "epochs": [
     50,
     100,
@@ -10,6 +10,14 @@
     300,
     500,
     750
+  ],
+  "seed_42": [
+    "0/15",
+    "0/15",
+    "2/15",
+    "3/15",
+    "2/15",
+    "1/15"
   ],
   "fp_count": [
     0,
