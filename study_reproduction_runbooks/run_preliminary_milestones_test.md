@@ -227,17 +227,11 @@ Rather than selectively downloading, download the full set of evidence needed to
 # On the GPU server
 cd ~
 
-# Flush this session's in-memory history to ~/.bash_history before archiving.
-# Bash only writes history to disk on shell exit by default, and work running
-# in a still-open tmux session may not have been flushed yet.
-history -a
-
 tar czf preliminary_milestones_full.tar.gz \
   liver-us-detection-baselines/ \
   nnUNet_raw/ \
   nnUNet_preprocessed/ \
   nnUNet_results/ \
-  .bash_history
 ```
 
 Then, on the Mac:
