@@ -11,13 +11,13 @@ fixed physical distance, because this dataset carries no physical spacings.
 
 On this dataset every image is one patient with at most one mass, so detection
 is effectively case-level. Reports, per milestone checkpoint and per mass
-grouping (combined / malignant / benign): case-level recall, precision, F1, and
-false-positive rate over Normal cases.
+grouping (combined / malignant / benign): case-level recall and false-positive
+rate over Normal cases.
 
 The 100 px noise floor filters speckle from predicted components before
 centroids are computed, matching the other detection scripts.
 
-Single-seed run (seed 42, 625 images, joint-selected checkpoints); no error bars.
+Single-seed run (seed 42, 625 images); no error bars.
 
 Run from project root:
     python analysis/epoch_convergence/epoch_convergence_by_centroid_detection/epoch_convergence_by_centroid_detection.py
@@ -81,8 +81,6 @@ EPOCH_DIRS = [
 ]
 
 METRICS = {
-    "case_f1":          ("Case F1",          "#eb6834"),
-    "case_precision":   ("Case precision",   "#f2a17e"),
     "case_recall":      ("Case recall",      "#f5c0aa"),
     "case_fp_rate":     ("Case FP rate",     "#3b6d11"),
 }
@@ -178,22 +176,15 @@ def evaluate_centroid(pred_dir, test_files, class_map, min_pred_area,
 
 
 def evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant"):
-    """Run centroid eval for one checkpoint, return the 4 metrics."""
+    """Run centroid eval for one checkpoint, return case recall and FP rate."""
     ctp, cfp, cfn, n_normal = evaluate_centroid(
         pred_dir, test_files, class_map, MIN_PRED_AREA,
         positive_class=positive_class)
 
-    cprec = ctp / (ctp + cfp) if (ctp + cfp) > 0 else 0.0
     crec = ctp / (ctp + cfn) if (ctp + cfn) > 0 else 0.0
-    cf1 = 2 * cprec * crec / (cprec + crec) if (cprec + crec) > 0 else 0.0
     cfp_rate = cfp / n_normal if n_normal > 0 else 0.0
 
-    return {
-        "case_f1": cf1,
-        "case_precision": cprec,
-        "case_recall": crec,
-        "case_fp_rate": cfp_rate,
-    }
+    return crec, cfp_rate
 
 
 def main():
@@ -218,45 +209,57 @@ def main():
         if not pred_dir.exists():
             print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
             continue
-        r = evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant")
-        rb = evaluate_epoch(pred_dir, test_files, class_map, positive_class="benign")
-        rc = evaluate_epoch(pred_dir, test_files, class_map, positive_class="combined")
+        crec, cfp = evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant")
+        rb_rec, rb_fp = evaluate_epoch(pred_dir, test_files, class_map, positive_class="benign")
+        rc_rec, rc_fp = evaluate_epoch(pred_dir, test_files, class_map, positive_class="combined")
         epochs.append(epoch)
-        for key in METRICS:
-            metrics[key].append(r[key])
-            benign_metrics[key].append(rb[key])
-            combined_metrics[key].append(rc[key])
+        metrics["case_recall"].append(crec)
+        metrics["case_fp_rate"].append(cfp)
+        benign_metrics["case_recall"].append(rb_rec)
+        benign_metrics["case_fp_rate"].append(rb_fp)
+        combined_metrics["case_recall"].append(rc_rec)
+        combined_metrics["case_fp_rate"].append(rc_fp)
 
     if not epochs:
         print("No per-epoch predictions found, exiting")
         return
 
     # --- Terminal tables ---
-    header = "Epoch | CF1 | CPrec | CRec | CFP"
-    sep = "------|------|-------|------|-----"
+    header = "Epoch | CRec | CFP"
+    sep = "------|------|-----"
     for title, table in [("All masses", combined_metrics),
                          ("Malignant", metrics),
                          ("Benign", benign_metrics)]:
         print(f"\n{title} — {header}")
         print(f"{'':>7}  {sep}")
         for i, ep in enumerate(epochs):
-            print(f"{ep:>5} | {table['case_f1'][i]:.3f} | "
-                  f"{table['case_precision'][i]:.3f} | "
-                  f"{table['case_recall'][i]:.3f} | "
+            print(f"{ep:>5} | {table['case_recall'][i]:.3f} | "
                   f"{table['case_fp_rate'][i]:.3f}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_centroid_detection.json"
     payload = {
+        "title": "Case-level centroid-based detection by saved milestone epoch",
+        "description": ("Single preliminary milestones test run: seed 42, 625 images, "
+                        "centroid detection = predicted centroid within 0.5x GT "
+                        f"equivalent diameter, noise floor {MIN_PRED_AREA} px."),
         "noise_floor_px": MIN_PRED_AREA,
         "centroid_definition": "predicted centroid within 0.5x GT equivalent diameter",
         "seed": 42,
         "images": 625,
-        "checkpoint_selection": "joint",
         "epochs": epochs,
-        "combined": {key: combined_metrics[key] for key in METRICS},
-        "malignant": {key: metrics[key] for key in METRICS},
-        "benign": {key: benign_metrics[key] for key in METRICS},
+        "combined": {
+            "Detection": combined_metrics["case_recall"],
+            "False positive rate": combined_metrics["case_fp_rate"],
+        },
+        "malignant": {
+            "Detection": metrics["case_recall"],
+            "False positive rate": metrics["case_fp_rate"],
+        },
+        "benign": {
+            "Detection": benign_metrics["case_recall"],
+            "False positive rate": benign_metrics["case_fp_rate"],
+        },
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -264,11 +267,11 @@ def main():
 
     # --- Markdown ---
     md_lines = [
-        "# Centroid detection vs. epoch",
+        "# Case-level centroid-based detection by saved milestone epoch",
         "",
-        f"Single preliminary milestones run: seed 42, 625 images, joint-selected "
-        f"checkpoints, centroid detection = predicted centroid within 0.5x GT "
-        f"equivalent diameter, noise floor {MIN_PRED_AREA} px.",
+        f"Single preliminary milestones test run: seed 42, 625 images, "
+        f"centroid detection = predicted centroid within 0.5x GT equivalent "
+        f"diameter, noise floor {MIN_PRED_AREA} px.",
         "",
         "A mass case is detected when the closest retained predicted centroid "
         "lies within half the ground-truth mass's equivalent circular diameter. "
@@ -283,13 +286,11 @@ def main():
                          ("Benign masses", benign_metrics)]:
         md_lines.append(f"## {title}")
         md_lines.append("")
-        md_lines.append("| Epoch | Case F1 | Case Prec | Case Rec | Case FP rate |")
-        md_lines.append("|------:|--------:|----------:|---------:|-------------:|")
+        md_lines.append("| Epoch | Detection | False positive rate |")
+        md_lines.append("|------:|----------:|-------------------:|")
         for i, ep in enumerate(epochs):
             md_lines.append(
-                f"| {ep} | {table['case_f1'][i]:.3f} | "
-                f"{table['case_precision'][i]:.3f} | "
-                f"{table['case_recall'][i]:.3f} | "
+                f"| {ep} | {table['case_recall'][i]:.3f} | "
                 f"{table['case_fp_rate'][i]:.3f} |"
             )
         md_lines.append("")
