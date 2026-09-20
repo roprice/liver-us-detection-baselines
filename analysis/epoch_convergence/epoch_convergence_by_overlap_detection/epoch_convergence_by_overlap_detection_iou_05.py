@@ -5,15 +5,13 @@ Evaluates the six milestone checkpoints (50/100/150/300/500/750) on mass
 *detection* metrics using overlap-based matching with IoU >= 0.5, reported for
 all masses combined and separately for malignant and benign masses.
 
-Two views are reported per mass grouping, both per epoch:
-  - Lesion-level: recall / precision / F1 over matched lesions in malignant cases.
-  - Case-level (patient triage): recall / precision / F1 and false-positive rate.
+Per mass grouping, reports case-level (patient triage) recall and
+false-positive rate over Normal cases.
 
 Overlap detection matching (noise floor 100 px) is defined locally so the script
 is self-contained.
 
-This is a single-seed run (seed 42, 625 images, joint-selected checkpoints), so
-there are no error bars.
+This is a single-seed run (seed 42, 625 images), so there are no error bars.
 
 Run from project root:
     python analysis/epoch_convergence/epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_05.py
@@ -82,14 +80,8 @@ EPOCH_DIRS = [
     ("predictions_milestones_625images_seed42_epoch750", 750),
 ]
 
-# Metric key -> (legend label, color). All seven are computed and written to
-# the JSON/Markdown artifacts for future investigation; only a subset is plotted.
+# Metric key -> (legend label, color).
 METRICS = {
-    "lesion_f1":        ("Lesion F1",        "#2a78d6"),
-    "lesion_precision": ("Lesion precision", "#6aa7e8"),
-    "lesion_recall":    ("Lesion recall",    "#9cc4f2"),
-    "case_f1":          ("Case F1",          "#eb6834"),
-    "case_precision":   ("Case precision",   "#f2a17e"),
     "case_recall":      ("Case recall",      "#f5c0aa"),
     "case_fp_rate":     ("Case FP rate",     "#3b6d11"),
 }
@@ -114,111 +106,29 @@ def get_class_map():
             for e in mapping if e["split"] == "test"}
 
 
-def match_lesions(gt_mask, pred_mask, iou_threshold, min_pred_area):
-    """Greedy one-to-one lesion matching at a given IoU threshold.
-
-    Returns (tp, fp, fn). When iou_threshold == 0.0 this is overlap-based
-    (any overlap counts as a match), since the >= threshold is 0.
-    """
-    gt_labeled = label(gt_mask)
-    pred_labeled = label(pred_mask)
-    n_gt = gt_labeled.max()
-    n_pred = pred_labeled.max()
-
-    # Filter small predicted components
-    if n_pred > 0:
-        keep = set()
-        for p in range(1, n_pred + 1):
-            if (pred_labeled == p).sum() >= min_pred_area:
-                keep.add(p)
-        if len(keep) < n_pred:
-            filtered = np.zeros_like(pred_labeled)
-            for i, p in enumerate(sorted(keep), 1):
-                filtered[pred_labeled == p] = i
-            pred_labeled = filtered
-            n_pred = len(keep)
-
-    if n_gt == 0 and n_pred == 0:
-        return 0, 0, 0
-
-    if n_gt == 0:
-        return 0, n_pred, 0
-
-    if n_pred == 0:
-        return 0, 0, n_gt
-
-    # IoU matrix
-    iou_matrix = np.zeros((n_gt, n_pred))
-    for g in range(1, n_gt + 1):
-        gt_r = (gt_labeled == g)
-        for p in range(1, n_pred + 1):
-            pred_r = (pred_labeled == p)
-            inter = np.logical_and(gt_r, pred_r).sum()
-            union = np.logical_or(gt_r, pred_r).sum()
-            iou_matrix[g - 1, p - 1] = inter / union if union > 0 else 0.0
-
-    # Greedy matching. With iou_threshold == 0.0, overlap-based: require any
-    # overlap (IoU > 0), not IoU >= 0 (which would also match disjoint pairs).
-    matched_gt, matched_pred = set(), set()
-    tp = 0
-    if iou_threshold == 0.0:
-        pairs = [(iou_matrix[g, p], g, p) for g in range(n_gt) for p in range(n_pred)
-                 if iou_matrix[g, p] > 0.0]
-    else:
-        pairs = [(iou_matrix[g, p], g, p) for g in range(n_gt) for p in range(n_pred)
-                 if iou_matrix[g, p] >= iou_threshold]
-    pairs.sort(reverse=True)
-
-    for iou_val, g, p in pairs:
-        if g not in matched_gt and p not in matched_pred:
-            matched_gt.add(g)
-            matched_pred.add(p)
-            tp += 1
-
-    fp = n_pred - len(matched_pred)
-    fn = n_gt - len(matched_gt)
-
-    return tp, fp, fn
-
-
-def evaluate_run(pred_dir, test_files, class_map, min_pred_area,
-                 iou_threshold=0.0, positive_class="malignant"):
-    """Evaluate one seed/size run at a given IoU threshold (default overlap).
-
-    positive_class selects which mass-bearing cases are treated as the positive
-    class (``malignant`` or ``benign``); normal cases are always the negative
-    class. Masses in the other (non-positive) mass-bearing class are ignored.
-
-    Returns (lesion, case) where:
-      lesion = (tp, fp, fn) at lesion level over positive-class cases
-      case   = (tp, fp, fn, n_normal) at patient level:
-               tp = positive case with an overlapping prediction
-               fn = positive case with no overlapping prediction
-               fp = normal case (no mass) flagged by the model
-               n_normal = number of normal (mass-free) cases evaluated
-    """
-    lesion_tp = lesion_fp = lesion_fn = 0
+def evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=0.0,
+                   positive_class="malignant"):
+    """Run detection eval for one checkpoint, return case recall and FP rate."""
     case_tp = case_fn = 0
-    case_fp = 0  # false alarms on normal cases
+    case_fp = 0
     n_normal = 0
 
     for fname in test_files:
         cls = class_map.get(fname, "unknown")
-        gt = np.array(Image.open(LABELS_TS / fname))
         pred_path = pred_dir / fname
         if not pred_path.exists():
             continue
         pred = np.array(Image.open(pred_path))
+        gt = np.array(Image.open(LABELS_TS / fname))
         gt_mass = (gt == MASS_VALUE).astype(np.uint8)
         pred_mass = (pred == MASS_VALUE).astype(np.uint8)
 
-        # Filter predicted components (speckle), for both the mass region used
-        # in overlap detection and the component count on normals.
+        # Filter predicted components (speckle).
         pred_labeled = label(pred_mass)
         n_pred = pred_labeled.max()
         keep = set()
         for p in range(1, n_pred + 1):
-            if (pred_labeled == p).sum() >= min_pred_area:
+            if (pred_labeled == p).sum() >= MIN_PRED_AREA:
                 keep.add(p)
         filtered_pred = np.zeros_like(pred_mass)
         for p in keep:
@@ -230,14 +140,8 @@ def evaluate_run(pred_dir, test_files, class_map, min_pred_area,
             else cls == positive_class
         )
         if is_positive:
-            tp, fp, fn = match_lesions(gt_mass, pred_mass, iou_threshold, min_pred_area)
-            lesion_tp += tp
-            lesion_fp += fp
-            lesion_fn += fn
-
             # Case-level: any retained prediction overlapping the GT mass counts
-            # as detected (overlap), or IoU >= iou_threshold when a threshold is
-            # supplied.
+            # as detected. With iou_threshold == 0.0 this is overlap (IoU > 0).
             n_gt = label(gt_mass).max()
             detected = False
             if n_gt > 0 and filtered_pred.sum() > 0:
@@ -261,38 +165,10 @@ def evaluate_run(pred_dir, test_files, class_map, min_pred_area,
             if filtered_pred.sum() > 0:
                 case_fp += 1
 
-    lesion = (int(lesion_tp), int(lesion_fp), int(lesion_fn))
-    case = (int(case_tp), int(case_fp), int(case_fn), int(n_normal))
-    return lesion, case
+    case_recall = case_tp / (case_tp + case_fn) if (case_tp + case_fn) > 0 else 0.0
+    case_fp_rate = case_fp / n_normal if n_normal > 0 else 0.0
 
-
-def evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=0.0,
-                   positive_class="malignant"):
-    """Run detection eval for one checkpoint, return the 7 metrics."""
-    lesion, case = evaluate_run(pred_dir, test_files, class_map, MIN_PRED_AREA,
-                                iou_threshold=iou_threshold,
-                                positive_class=positive_class)
-
-    ltp, lfp, lfn = lesion
-    lprec = ltp / (ltp + lfp) if (ltp + lfp) > 0 else 0.0
-    lrec = ltp / (ltp + lfn) if (ltp + lfn) > 0 else 0.0
-    lf1 = 2 * lprec * lrec / (lprec + lrec) if (lprec + lrec) > 0 else 0.0
-
-    ctp, cfp, cfn, n_normal = case
-    cprec = ctp / (ctp + cfp) if (ctp + cfp) > 0 else 0.0
-    crec = ctp / (ctp + cfn) if (ctp + cfn) > 0 else 0.0
-    cf1 = 2 * cprec * crec / (cprec + crec) if (cprec + crec) > 0 else 0.0
-    cfp_rate = cfp / n_normal if n_normal > 0 else 0.0
-
-    return {
-        "lesion_f1": lf1,
-        "lesion_precision": lprec,
-        "lesion_recall": lrec,
-        "case_f1": cf1,
-        "case_precision": cprec,
-        "case_recall": crec,
-        "case_fp_rate": cfp_rate,
-    }
+    return case_recall, case_fp_rate
 
 
 def main():
@@ -320,71 +196,69 @@ def main():
         if not pred_dir.exists():
             print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
             continue
-        r = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
-                           positive_class="malignant")
-        rb = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
-                            positive_class="benign")
-        rc = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
-                            positive_class="combined")
+        crec, cfp = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
+                                   positive_class="malignant")
+        rb_rec, rb_fp = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
+                                       positive_class="benign")
+        rc_rec, rc_fp = evaluate_epoch(pred_dir, test_files, class_map, iou_threshold=iou_threshold,
+                                       positive_class="combined")
         epochs.append(epoch)
-        for key in METRICS:
-            metrics[key].append(r[key])
-            benign_metrics[key].append(rb[key])
-            combined_metrics[key].append(rc[key])
+        metrics["case_recall"].append(crec)
+        metrics["case_fp_rate"].append(cfp)
+        benign_metrics["case_recall"].append(rb_rec)
+        benign_metrics["case_fp_rate"].append(rb_fp)
+        combined_metrics["case_recall"].append(rc_rec)
+        combined_metrics["case_fp_rate"].append(rc_fp)
 
     if not epochs:
         print("No per-epoch predictions found, exiting")
         return
 
     # --- Terminal table (all masses) ---
-    print("\nAll masses — Epoch | LF1 | LPrec | LRec | CF1 | CPrec | CRec | CFP")
-    print("-------------------|------|-------|------|------|-------|------|-----")
+    print("\nAll masses — Epoch | CRec | CFP")
+    print("-------------------|------|-----")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>18} | {combined_metrics['lesion_f1'][i]:.3f} | "
-              f"{combined_metrics['lesion_precision'][i]:.3f} | "
-              f"{combined_metrics['lesion_recall'][i]:.3f} | "
-              f"{combined_metrics['case_f1'][i]:.3f} | "
-              f"{combined_metrics['case_precision'][i]:.3f} | "
-              f"{combined_metrics['case_recall'][i]:.3f} | "
+        print(f"{ep:>18} | {combined_metrics['case_recall'][i]:.3f} | "
               f"{combined_metrics['case_fp_rate'][i]:.3f}")
 
     # --- Terminal table (malignant) ---
-    print("\nMalignant — Epoch | LF1 | LPrec | LRec | CF1 | CPrec | CRec | CFP")
-    print("------------------|------|-------|------|------|-------|------|-----")
+    print("\nMalignant — Epoch | CRec | CFP")
+    print("------------------|------|-----")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>18} | {metrics['lesion_f1'][i]:.3f} | "
-              f"{metrics['lesion_precision'][i]:.3f} | "
-              f"{metrics['lesion_recall'][i]:.3f} | "
-              f"{metrics['case_f1'][i]:.3f} | "
-              f"{metrics['case_precision'][i]:.3f} | "
-              f"{metrics['case_recall'][i]:.3f} | "
+        print(f"{ep:>18} | {metrics['case_recall'][i]:.3f} | "
               f"{metrics['case_fp_rate'][i]:.3f}")
 
     # --- Terminal table (benign) ---
-    print("\nBenign   — Epoch | LF1 | LPrec | LRec | CF1 | CPrec | CRec | CFP")
-    print("------------------|------|-------|------|------|-------|------|-----")
+    print("\nBenign   — Epoch | CRec | CFP")
+    print("------------------|------|-----")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>18} | {benign_metrics['lesion_f1'][i]:.3f} | "
-              f"{benign_metrics['lesion_precision'][i]:.3f} | "
-              f"{benign_metrics['lesion_recall'][i]:.3f} | "
-              f"{benign_metrics['case_f1'][i]:.3f} | "
-              f"{benign_metrics['case_precision'][i]:.3f} | "
-              f"{benign_metrics['case_recall'][i]:.3f} | "
+        print(f"{ep:>18} | {benign_metrics['case_recall'][i]:.3f} | "
               f"{benign_metrics['case_fp_rate'][i]:.3f}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_overlap_detection_iou_05.json"
     payload = {
+        "title": "Case-level overlap-based detection (IoU>=0.5) by saved milestone epoch",
+        "description": ("Single preliminary milestones test run: seed 42, 625 images, "
+                        f"detection = {definition}, noise floor {MIN_PRED_AREA} px."),
         "noise_floor_px": MIN_PRED_AREA,
         "iou_threshold": iou_threshold,
         "detection_definition": definition,
         "seed": 42,
         "images": 625,
-        "checkpoint_selection": "joint",
         "epochs": epochs,
-        "combined": {key: combined_metrics[key] for key in METRICS},
-        "malignant": {key: metrics[key] for key in METRICS},
-        "benign": {key: benign_metrics[key] for key in METRICS},
+        "combined": {
+            "Detection": combined_metrics["case_recall"],
+            "False positive rate": combined_metrics["case_fp_rate"],
+        },
+        "malignant": {
+            "Detection": metrics["case_recall"],
+            "False positive rate": metrics["case_fp_rate"],
+        },
+        "benign": {
+            "Detection": benign_metrics["case_recall"],
+            "False positive rate": benign_metrics["case_fp_rate"],
+        },
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -392,10 +266,10 @@ def main():
 
     # --- Markdown ---
     md_lines = [
-        "# Overlap detection quality vs. epoch",
+        "# Case-level overlap-based detection (IoU>=0.5) by saved milestone epoch",
         "",
-        f"Single preliminary milestones run: seed 42, 625 images, joint-selected "
-        f"checkpoints, detection = {definition}, noise floor {MIN_PRED_AREA} px.",
+        f"Single preliminary milestones test run: seed 42, 625 images, "
+        f"detection = {definition}, noise floor {MIN_PRED_AREA} px.",
         "",
         "No error bars (single seed).",
         "",
@@ -403,54 +277,33 @@ def main():
 
     md_lines.append("## All masses")
     md_lines.append("")
-    md_lines.append("| Epoch | Lesion F1 | Lesion Prec | Lesion Rec | Case F1 | Case Prec | "
-        "Case Rec | Case FP rate |")
-    md_lines.append("|------:|----------:|------------:|-----------:|--------:|----------:|"
-        "----------:|-------------:|")
+    md_lines.append("| Epoch | Detection | False positive rate |")
+    md_lines.append("|------:|----------:|-------------------:|")
     for i, ep in enumerate(epochs):
         md_lines.append(
-            f"| {ep} | {combined_metrics['lesion_f1'][i]:.3f} | "
-            f"{combined_metrics['lesion_precision'][i]:.3f} | "
-            f"{combined_metrics['lesion_recall'][i]:.3f} | "
-            f"{combined_metrics['case_f1'][i]:.3f} | "
-            f"{combined_metrics['case_precision'][i]:.3f} | "
-            f"{combined_metrics['case_recall'][i]:.3f} | "
+            f"| {ep} | {combined_metrics['case_recall'][i]:.3f} | "
             f"{combined_metrics['case_fp_rate'][i]:.3f} |"
         )
     md_lines.append("")
 
     md_lines.append("## Malignant masses")
     md_lines.append("")
-    md_lines.append("| Epoch | Lesion F1 | Lesion Prec | Lesion Rec | Case F1 | Case Prec | "
-        "Case Rec | Case FP rate |")
-    md_lines.append("|------:|----------:|------------:|-----------:|--------:|----------:|"
-        "----------:|-------------:|")
+    md_lines.append("| Epoch | Detection | False positive rate |")
+    md_lines.append("|------:|----------:|-------------------:|")
     for i, ep in enumerate(epochs):
         md_lines.append(
-            f"| {ep} | {metrics['lesion_f1'][i]:.3f} | "
-            f"{metrics['lesion_precision'][i]:.3f} | "
-            f"{metrics['lesion_recall'][i]:.3f} | "
-            f"{metrics['case_f1'][i]:.3f} | "
-            f"{metrics['case_precision'][i]:.3f} | "
-            f"{metrics['case_recall'][i]:.3f} | "
+            f"| {ep} | {metrics['case_recall'][i]:.3f} | "
             f"{metrics['case_fp_rate'][i]:.3f} |"
         )
     md_lines.append("")
 
     md_lines.append("## Benign masses")
     md_lines.append("")
-    md_lines.append("| Epoch | Lesion F1 | Lesion Prec | Lesion Rec | Case F1 | Case Prec | "
-        "Case Rec | Case FP rate |")
-    md_lines.append("|------:|----------:|------------:|-----------:|--------:|----------:|"
-        "----------:|-------------:|")
+    md_lines.append("| Epoch | Detection | False positive rate |")
+    md_lines.append("|------:|----------:|-------------------:|")
     for i, ep in enumerate(epochs):
         md_lines.append(
-            f"| {ep} | {benign_metrics['lesion_f1'][i]:.3f} | "
-            f"{benign_metrics['lesion_precision'][i]:.3f} | "
-            f"{benign_metrics['lesion_recall'][i]:.3f} | "
-            f"{benign_metrics['case_f1'][i]:.3f} | "
-            f"{benign_metrics['case_precision'][i]:.3f} | "
-            f"{benign_metrics['case_recall'][i]:.3f} | "
+            f"| {ep} | {benign_metrics['case_recall'][i]:.3f} | "
             f"{benign_metrics['case_fp_rate'][i]:.3f} |"
         )
     md_lines.append("")
