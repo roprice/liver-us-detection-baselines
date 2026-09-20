@@ -1,14 +1,14 @@
 """Malignant-mass detection vs. epoch, five criteria on one chart.
 
 Plots malignant case-level recall across five detection criteria, so the
-permissiveness ladder (triage -> overlap -> centroid -> IoU 0.2 -> IoU 0.5) can
-be read off against epoch in one view:
+permissiveness ladder (triage -> overlap -> centroid) can be read off against
+epoch in one view:
 
   - triage:       any retained predicted mass anywhere (no overlap required)
   - iou_0:        overlap-based (any overlap, IoU > 0)
+  - iou_0.2:      IoU > 0.2 (per-component)
+  - iou_0.5:      IoU > 0.5 (per-component)
   - centroid:     predicted centroid within 0.5x GT equivalent diameter
-  - iou_0.2:      IoU >= 0.2
-  - iou_0.5:      IoU >= 0.5
 
 The values are read from the per-criterion JSON artifacts already produced by
 the individual analysis scripts (recomputation would duplicate their logic).
@@ -44,13 +44,13 @@ CRITERIA = [
     ("triage",   "epoch_convergence_by_triage_detection/epoch_convergence_by_triage_detection.json",
      "Triage",                 "#9cc4f2", "--"),
     ("iou_0",    "epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_00.json",
-     "Overlap (IoU > 0)",      "#2a78d6", "-"),
+     "Overlap (IoU>0.0)",      "#2a78d6", "-"),
+    ("iou_02",   "epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_02.json",
+     "Overlap (IoU>0.2)",      "#eb6834", "-"),
+    ("iou_05",   "epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_05.json",
+     "Overlap (IoU>0.5)",      "#c0c0c0", "-"),
     ("centroid", "epoch_convergence_by_centroid_detection/epoch_convergence_by_centroid_detection.json",
      "Centroid",               "#3b6d11", "-"),
-    ("iou_02",   "epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_02.json",
-     "IoU >= 0.2",             "#eb6834", "-"),
-    ("iou_05",   "epoch_convergence_by_overlap_detection/epoch_convergence_by_overlap_detection_iou_05.json",
-     "IoU >= 0.5",             "#c0c0c0", "-"),
 ]
 
 plt.rcParams.update({
