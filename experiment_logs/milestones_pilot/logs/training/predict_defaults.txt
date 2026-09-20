@@ -1,0 +1,86 @@
+
+#######################################################################
+Please cite the following paper when using nnU-Net:
+Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods, 18(2), 203-211.
+#######################################################################
+
+usage: nnUNetv2_predict [-h] -i I -o O -d D [-p P] [-tr TR] -c C
+                        [-f F [F ...]] [-step_size STEP_SIZE] [--disable_tta]
+                        [--verbose] [--save_probabilities]
+                        [--continue_prediction] [-chk CHK] [-npp NPP]
+                        [-nps NPS]
+                        [-prev_stage_predictions PREV_STAGE_PREDICTIONS]
+                        [-num_parts NUM_PARTS] [-part_id PART_ID]
+                        [-device DEVICE] [--disable_progress_bar]
+                        [--not_on_device]
+
+Use this to run inference with nnU-Net. This function is used when you want to
+manually specify a folder containing a trained nnU-Net model. This is useful
+when the nnunet environment variables (nnUNet_results) are not set.
+
+options:
+  -h, --help            show this help message and exit
+  -i I                  input folder. Remember to use the correct channel
+                        numberings for your files (_0000 etc). File endings
+                        must be the same as the training dataset!
+  -o O                  Output folder. If it does not exist it will be
+                        created. Predicted segmentations will have the same
+                        name as their source images.
+  -d D                  Dataset with which you would like to predict. You can
+                        specify either dataset name or id
+  -p P                  Plans identifier. Specify the plans in which the
+                        desired configuration is located. Default: nnUNetPlans
+  -tr TR                What nnU-Net trainer class was used for training?
+                        Default: nnUNetTrainer
+  -c C                  nnU-Net configuration that should be used for
+                        prediction. Config must be located in the plans
+                        specified with -p
+  -f F [F ...]          Specify the folds of the trained model that should be
+                        used for prediction. Default: (0, 1, 2, 3, 4)
+  -step_size STEP_SIZE  Step size for sliding window prediction. The larger it
+                        is the faster but less accurate the prediction.
+                        Default: 0.5. Cannot be larger than 1. We recommend
+                        the default.
+  --disable_tta         Set this flag to disable test time data augmentation
+                        in the form of mirroring. Faster, but less accurate
+                        inference. Not recommended.
+  --verbose             Set this if you like being talked to. You will have to
+                        be a good listener/reader.
+  --save_probabilities  Set this to export predicted class "probabilities".
+                        Required if you want to ensemble multiple
+                        configurations.
+  --continue_prediction
+                        Continue an aborted previous prediction (will not
+                        overwrite existing files)
+  -chk CHK              Name of the checkpoint you want to use. Default:
+                        checkpoint_final.pth
+  -npp NPP              Number of processes used for preprocessing. More is
+                        not always better. Beware of out-of-RAM issues.
+                        Default: 3
+  -nps NPS              Number of processes used for segmentation export. More
+                        is not always better. Beware of out-of-RAM issues.
+                        Default: 3
+  -prev_stage_predictions PREV_STAGE_PREDICTIONS
+                        Folder containing the predictions of the previous
+                        stage. Required for cascaded models.
+  -num_parts NUM_PARTS  Number of separate nnUNetv2_predict call that you will
+                        be making. Default: 1 (= this one call predicts
+                        everything)
+  -part_id PART_ID      If multiple nnUNetv2_predict exist, which one is this?
+                        IDs start with 0 can end with num_parts - 1. So when
+                        you submit 5 nnUNetv2_predict calls you need to set
+                        -num_parts 5 and use -part_id 0, 1, 2, 3 and 4.
+                        Simple, right? Note: You are yourself responsible to
+                        make these run on separate GPUs! Use
+                        CUDA_VISIBLE_DEVICES (google, yo!)
+  -device DEVICE        Use this to set the device the inference should run
+                        with. Available options are 'cuda' (GPU), 'cpu' (CPU)
+                        and 'mps' (Apple M1/M2). Do NOT use this to set which
+                        GPU ID! Use CUDA_VISIBLE_DEVICES=X nnUNetv2_predict
+                        [...] instead!
+  --disable_progress_bar
+                        Set this flag to disable progress bar. Recommended for
+                        HPC environments (non interactive jobs)
+  --not_on_device       Set this flag to disable perform_everything_on_device.
+                        Recommended for large cases that occupy more VRAM than
+                        available

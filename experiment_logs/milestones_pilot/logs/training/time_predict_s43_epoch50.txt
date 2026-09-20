@@ -1,0 +1,23 @@
+	Command being timed: "nnUNetv2_predict -i /root/nnUNet_raw/Dataset001_AUL/imagesTs -o /root/nnUNet_results/predictions_milestones_625images_seed43_epoch50 -d 1 -c 2d -f 0 -tr nnUNetTrainerMilestones_seed43 -chk checkpoint_epoch50.pth"
+	User time (seconds): 58.08
+	System time (seconds): 6.55
+	Percent of CPU this job got: 236%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:27.37
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3079060
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 223
+	Minor (reclaiming a frame) page faults: 1558827
+	Voluntary context switches: 60175
+	Involuntary context switches: 13922
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 1264
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
