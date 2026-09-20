@@ -275,7 +275,8 @@ def main():
 
     for ext in ('pdf', 'png'):
         out = OUT_DIR / f'epoch_convergence_by_centroid_detection.{ext}'
-        fig.savefig(out, dpi=300, bbox_inches='tight')
+        fig.savefig(out, dpi=300, bbox_inches='tight',
+                    metadata={'CreationDate': None})
         print(f'Wrote {out}')
     plt.close(fig)
 

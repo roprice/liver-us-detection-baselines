@@ -324,7 +324,8 @@ def main():
 
     for ext in ('pdf', 'png'):
         out_path = os.path.join(OUT_DIR, f'epoch_convergence_by_segmentation.{ext}')
-        fig.savefig(out_path, dpi=300, bbox_inches='tight')
+        fig.savefig(out_path, dpi=300, bbox_inches='tight',
+                    metadata={'CreationDate': None})
         print(f'Plot saved to: {out_path}')
     plt.close(fig)
 
