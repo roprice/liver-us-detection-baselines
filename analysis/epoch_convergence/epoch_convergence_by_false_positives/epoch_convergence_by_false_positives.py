@@ -9,9 +9,8 @@ Two views per epoch:
   - Raw false-alarm count over the Normal test cases.
   - False-alarm rate (count / number of Normal cases).
 
-A Normal case has no ground-truth mass, so there is no overlap to threshold
-against: any retained predicted mass is a false alarm. The IoU threshold from the
-detection script therefore does not apply here; only the 100 px noise floor does.
+Reads the canonical predictions dataset (analysis/predictions_dataset): a false
+positive is simply a normal case whose normal_false_positive column is True.
 
 Single-seed run (seed 42, 625 images, joint-selected checkpoints); no error bars.
 
@@ -21,24 +20,23 @@ Run from project root:
 
 import json
 import os
+import sys
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
-from PIL import Image
-from skimage.measure import label
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# --- Detection config (mirrors the overlap detection script) ---
-LABELS_TS = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/labelsTs"
-CASE_MAPPING = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/case_mapping.json"
-
-MASS_VALUE = 2
-MIN_PRED_AREA = 100  # noise floor (px^2), same as the detection script
+# Make the project root importable so the predictions-dataset loader can be
+# used regardless of the current working directory.
+sys.path.insert(0, str(PROJECT_ROOT))
+from analysis.predictions_dataset.load_predictions_dataset import (
+    load_predictions_dataset,
+)
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -62,7 +60,6 @@ plt.rcParams.update({
     'axes.spines.right': True,
 })
 
-PRED_ROOT = PROJECT_ROOT / "predictions/preliminary_milestones_test/seed42"
 OUT_DIR = SCRIPT_DIR
 
 # Folder name -> epoch number.
@@ -79,73 +76,35 @@ FP_COUNT_COLOR = "#eb6834"
 FP_RATE_COLOR = "#2a78d6"
 
 
-def get_class_map():
-    """Build filename -> class mapping from case_mapping.json (test split)."""
-    if not CASE_MAPPING.exists():
-        print(f"WARNING: {CASE_MAPPING} not found")
-        return {}
-    with open(CASE_MAPPING) as f:
-        mapping = json.load(f)
-    return {e["case_name"] + ".png": e["category"].lower()
-            for e in mapping if e["split"] == "test"}
-
-
-def retained_mass_present(pred_mask, min_pred_area):
-    """Whether the prediction has any mass component >= min_pred_area.
-
-    Applies the same speckle filter as the detection script: only a retained
-    (>= noise floor) predicted mass component raises a false alarm.
-    """
-    pred_mass = (pred_mask == MASS_VALUE).astype(np.uint8)
-    pred_labeled = label(pred_mass)
-    n_pred = pred_labeled.max()
-    for p in range(1, n_pred + 1):
-        if (pred_labeled == p).sum() >= min_pred_area:
-            return True
-    return False
-
-
-def evaluate_false_positives(pred_dir, normal_files, min_pred_area):
-    """Count false alarms (Normal cases flagged with a retained mass).
-
-    Returns (fp_count, n_normal).
-    """
-    fp_count = 0
-    for fname in normal_files:
-        pred_path = pred_dir / fname
-        if not pred_path.exists():
-            continue
-        pred = np.array(Image.open(pred_path))
-        if retained_mass_present(pred, min_pred_area):
-            fp_count += 1
-    return fp_count, len(normal_files)
+def count_false_positives(rows):
+    """Return (fp_count, n_normal) from a checkpoint's rows."""
+    normal = [r for r in rows if r.pathology == "normal"]
+    fp_count = sum(1 for r in normal if r.normal_false_positive)
+    return fp_count, len(normal)
 
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    class_map = get_class_map()
-    if not LABELS_TS.exists():
-        print(f"ERROR: {LABELS_TS} not found")
-        return
-
-    normal_files = sorted(
-        f for f in os.listdir(LABELS_TS)
-        if f.endswith(".png") and class_map.get(f) == "normal"
-    )
-    print(f"Normal test cases: {len(normal_files)}, noise floor {MIN_PRED_AREA} px")
+    data = load_predictions_dataset()
+    print(f"Loaded predictions dataset: {data.snapshot_id}, "
+          f"{len(data.rows)} rows")
 
     epochs = []
     fp_counts = []
     fp_rates = []
+    n_normal = None
     for folder_name, epoch in EPOCH_DIRS:
-        pred_dir = PRED_ROOT / folder_name
-        if not pred_dir.exists():
-            print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
+        rows = [r for r in data.rows if r.configuration_id == folder_name]
+        if not rows:
+            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
             continue
-        fp_count, n_normal = evaluate_false_positives(
-            pred_dir, normal_files, MIN_PRED_AREA)
-        rate = fp_count / n_normal if n_normal > 0 else 0.0
+        fp_count, n = count_false_positives(rows)
+        if n_normal is None:
+            n_normal = n
+        elif n != n_normal:
+            print(f"WARNING: normal count {n} != {n_normal} for {folder_name}")
+        rate = fp_count / n if n > 0 else 0.0
         epochs.append(epoch)
         fp_counts.append(fp_count)
         fp_rates.append(rate)
@@ -163,10 +122,10 @@ def main():
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_false_positives.json"
     payload = {
-        "noise_floor_px": MIN_PRED_AREA,
         "seed": 42,
         "images": 625,
-        "normal_cases": len(normal_files),
+        "normal_cases": n_normal,
+        "dataset_snapshot_id": data.snapshot_id,
         "epochs": epochs,
         "fp_count": fp_counts,
         "fp_rate": fp_rates,
@@ -179,8 +138,8 @@ def main():
     md_lines = [
         "# False positives vs. epoch",
         "",
-        f"Single preliminary milestones run: seed 42, 625 images, joint-selected "
-        f"checkpoints, noise floor {MIN_PRED_AREA} px.",
+        "Single preliminary milestones run: seed 42, 625 images, joint-selected "
+        "checkpoints.",
         "",
         "A false positive is a Normal (mass-free) case the model flags as "
         "containing a mass. Every image is one patient with at most one mass, so "
@@ -188,7 +147,7 @@ def main():
         "",
         "No error bars (single seed).",
         "",
-        f"Normal test cases: {len(normal_files)}.",
+        f"Normal test cases: {n_normal}.",
         "",
         "| Epoch | False positives | FP rate |",
         "|------:|----------------:|--------:|",

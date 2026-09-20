@@ -1,8 +1,8 @@
 {
-  "noise_floor_px": 100,
   "seed": 42,
   "images": 625,
   "normal_cases": 15,
+  "dataset_snapshot_id": "05b00c5f5bcc",
   "epochs": [
     50,
     100,

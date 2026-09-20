@@ -1,6 +1,6 @@
 # False positives vs. epoch
 
-Single preliminary milestones run: seed 42, 625 images, joint-selected checkpoints, noise floor 100 px.
+Single preliminary milestones run: seed 42, 625 images, joint-selected checkpoints.
 
 A false positive is a Normal (mass-free) case the model flags as containing a mass. Every image is one patient with at most one mass, so this is a single case-level signal.
 
