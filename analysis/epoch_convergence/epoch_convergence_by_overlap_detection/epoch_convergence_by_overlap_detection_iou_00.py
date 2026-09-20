@@ -124,7 +124,7 @@ def evaluate_epoch(rows, positive_class="malignant"):
 
 
 def main():
-    definition = "overlap (IoU > 0)"
+    definition = "IoU > 0"
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
