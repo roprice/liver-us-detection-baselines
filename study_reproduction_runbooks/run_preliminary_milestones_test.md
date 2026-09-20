@@ -212,8 +212,6 @@ cat logs/training/training_times.csv  # header + 3 rows
 ls logs/inference/  # per-image, summary, settings CSVs/JSON
 ```
 
-Note: this experiment doesn't put logs into `experiment_logs/<experiment_name>/logs`, as do subsequent experiments. Reorganize `logs` into `experiment_logs/milestones_pilot/logs` after downloading so that analysis scripts work without path changes.
-
 ## Download results
 
 Download the full set of evidence needed to reconstruct and audit the run: the repo, logs, and all three nnU-Net working directories.
@@ -236,3 +234,21 @@ cd ~/Projects/liver-us-detection-baselines
 scp root@<server-ip>:~/preliminary_milestones_full.tar.gz /tmp/
 tar xzf /tmp/preliminary_milestones_full.tar.gz
 ```
+
+## Manual cleanup
+
+Note: this experiment doesn't place logs into `experiment_logs/<experiment_name>/`, as do subsequent experiments.
+
+To ensure analysis scripts work without path changes, create `experiment_logs/milestones_pilot/` and move the following there:
+```sh
+    mv logs experiment_logs/milestones_pilot/
+    mv preliminary_milestones_test.log experiment_logs/milestones_pilot/
+```
+
+That gives you:
+
+`experiment_logs/milestones_pilot/
+  logs/
+    training/
+    inference/
+  preliminary_milestones_test.log`
