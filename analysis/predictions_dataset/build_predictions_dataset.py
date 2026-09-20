@@ -352,9 +352,9 @@ def evaluate_case(config, case):
             outcome = "flagged_without_detection"
         else:
             outcome = "unflagged"
-        mass_dice = dice_score(raw_prediction, ground_truth)
+        mass_dice = dice_score(retained_prediction, ground_truth)
         liver_dice = dice_score(raw_liver_prediction, ground_truth_liver)
-        mass_iou = iou_score(raw_prediction, ground_truth)
+        mass_iou = iou_score(retained_prediction, ground_truth)
         normal_false_positive = None
     else:
         overlap_iou_00 = None
