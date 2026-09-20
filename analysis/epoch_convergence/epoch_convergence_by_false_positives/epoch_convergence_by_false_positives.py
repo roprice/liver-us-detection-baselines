@@ -88,10 +88,12 @@ def main():
     fp_count_stds = []
     fp_rate_means = []
     fp_rate_stds = []
+    fp_count_per_seed = []  # per epoch, per seed: raw fp count integers
     n_normal = None
     for epoch in EPOCHS:
         counts = []
         rates = []
+        seed_counts = []
         for seed in SEEDS:
             folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
             rows = [r for r in data.rows if r.configuration_id == folder]
@@ -105,21 +107,25 @@ def main():
                 print(f"WARNING: normal count {n} != {n_normal} for {folder}")
             counts.append(fp_count)
             rates.append(fp_count / n if n > 0 else 0.0)
+            seed_counts.append(fp_count)
         epochs.append(epoch)
         fp_count_means.append(float(np.nanmean(counts)) if counts else float('nan'))
         fp_count_stds.append(float(np.nanstd(counts, ddof=1)) if counts else float('nan'))
         fp_rate_means.append(float(np.nanmean(rates)) if rates else float('nan'))
         fp_rate_stds.append(float(np.nanstd(rates, ddof=1)) if rates else float('nan'))
+        fp_count_per_seed.append(seed_counts)
 
     if not epochs:
         print("No per-epoch predictions found, exiting")
         return
 
     # --- Terminal table ---
-    print("\nEpoch | FP rate | FP count")
-    print("------|---------|----------")
+    print("\nEpoch | Seed 42 | Seed 43 | Seed 44 | FP rate | FP count")
+    print("------|---------|---------|---------|---------|----------")
     for i, ep in enumerate(epochs):
-        print(f"{ep:>5} | {fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
+        sc = fp_count_per_seed[i]
+        print(f"{ep:>5} | {sc[0]}/{n_normal} | {sc[1]}/{n_normal} | {sc[2]}/{n_normal} | "
+              f"{fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
               f"{fp_count_means[i]:.2f} ± {fp_count_stds[i]:.2f}")
 
     # --- JSON (source of truth) ---
@@ -130,6 +136,7 @@ def main():
         "normal_cases": n_normal,
         "dataset_snapshot_id": data.snapshot_id,
         "epochs": epochs,
+        "fp_count_per_seed": fp_count_per_seed,
         "fp_count": {"mean": fp_count_means, "std": fp_count_stds},
         "fp_rate": {"mean": fp_rate_means, "std": fp_rate_stds},
     }
@@ -151,12 +158,14 @@ def main():
         "",
         f"Normal test cases: {n_normal}.",
         "",
-        "| Epoch | FP rate | False positives |",
-        "|------:|--------:|----------------:|",
+        "| Epoch | Seed 42 | Seed 43 | Seed 44 | Mean FP rate | Mean FP count |",
+        "|------:|:-------:|:-------:|:-------:|-------------:|--------------:|",
     ]
     for i, ep in enumerate(epochs):
+        sc = fp_count_per_seed[i]
         md_lines.append(
-            f"| {ep} | {fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
+            f"| {ep} | {sc[0]}/{n_normal} | {sc[1]}/{n_normal} | {sc[2]}/{n_normal} | "
+            f"{fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
             f"{fp_count_means[i]:.2f} ± {fp_count_stds[i]:.2f} |"
         )
     md_lines.append("")
