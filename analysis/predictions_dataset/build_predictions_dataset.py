@@ -339,8 +339,8 @@ def evaluate_case(config, case):
         max_retained_component_iou = max_component_iou(
             retained_prediction, ground_truth
         )
-        overlap_iou_02 = max_retained_component_iou >= 0.2
-        overlap_iou_05 = max_retained_component_iou >= 0.5
+        overlap_iou_02 = max_retained_component_iou > 0.2
+        overlap_iou_05 = max_retained_component_iou > 0.5
         centroid_detected = centroid_detection(ground_truth, retained_prediction)
         if overlap_iou_00 and not triage:
             raise AssertionError(
