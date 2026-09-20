@@ -14,8 +14,8 @@ is effectively case-level. Reports, per milestone checkpoint and per mass
 grouping (combined / malignant / benign): case-level recall and false-positive
 rate over Normal cases.
 
-The 100 px noise floor filters speckle from predicted components before
-centroids are computed, matching the other detection scripts.
+Reads the canonical predictions dataset (analysis/predictions_dataset) rather
+than the raw masks; centroid_detection_flag and pathology come from there.
 
 Single-seed run (seed 42, 625 images); no error bars.
 
@@ -25,6 +25,7 @@ Run from project root:
 
 import json
 import os
+import sys
 
 import numpy as np
 import matplotlib
@@ -32,18 +33,18 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from pathlib import Path
-from PIL import Image
-from skimage.measure import label
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# --- Detection config (mirrors the overlap detection script) ---
-LABELS_TS = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/labelsTs"
-CASE_MAPPING = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL/case_mapping.json"
+# Make the project root importable so the predictions-dataset loader can be
+# used regardless of the current working directory.
+sys.path.insert(0, str(PROJECT_ROOT))
+from analysis.predictions_dataset.load_predictions_dataset import (
+    load_predictions_dataset,
+)
 
-MASS_VALUE = 2
-MIN_PRED_AREA = 100  # noise floor (px^2), same as the detection script
+MIN_PRED_AREA = 100  # noise floor (px^2); already applied when the dataset was built
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -67,10 +68,10 @@ plt.rcParams.update({
     'axes.spines.right': True,
 })
 
-PRED_ROOT = PROJECT_ROOT / "predictions/preliminary_milestones_test/seed42"
 OUT_DIR = SCRIPT_DIR
 
-# Folder name -> epoch number.
+# Milestone checkpoints to report (epoch50..epoch750), excluding the snapshot
+# best/best_mass/final checkpoints which have no fixed epoch.
 EPOCH_DIRS = [
     ("predictions_milestones_625images_seed42_epoch50", 50),
     ("predictions_milestones_625images_seed42_epoch100", 100),
@@ -80,6 +81,7 @@ EPOCH_DIRS = [
     ("predictions_milestones_625images_seed42_epoch750", 750),
 ]
 
+# Metric key -> (legend label, color).
 METRICS = {
     "case_recall":      ("Case recall",      "#f5c0aa"),
     "case_fp_rate":     ("Case FP rate",     "#3b6d11"),
@@ -92,94 +94,39 @@ PLOT_SERIES = [
 ]
 
 
-def get_class_map():
-    """Build filename -> class mapping from case_mapping.json (test split)."""
-    if not CASE_MAPPING.exists():
-        print(f"WARNING: {CASE_MAPPING} not found")
-        return {}
-    with open(CASE_MAPPING) as f:
-        mapping = json.load(f)
-    return {e["case_name"] + ".png": e["category"].lower()
-            for e in mapping if e["split"] == "test"}
+def evaluate_centroid(rows, positive_class):
+    """Return (tp, fp, fn, n_normal) at case level for centroid detection.
 
-
-def filter_small_components(mask, min_area):
-    """Return a binary mask containing only components >= min_area pixels."""
-    labeled = label(mask)
-    filtered = np.zeros_like(mask)
-    for component in range(1, labeled.max() + 1):
-        component_mask = labeled == component
-        if component_mask.sum() >= min_area:
-            filtered[component_mask] = 1
-    return filtered
-
-
-def centroid_detects_ground_truth(gt_mass, filtered_prediction):
-    """Whether any GT component has a retained predicted centroid within half
-    its equivalent circular diameter (LUNA16-style 2D centroid criterion)."""
-    labeled_gt = label(gt_mass)
-    labeled_prediction = label(filtered_prediction)
-    predicted_centroids = []
-    for component in range(1, labeled_prediction.max() + 1):
-        coordinates = np.argwhere(labeled_prediction == component)
-        predicted_centroids.append(coordinates.mean(axis=0))
-
-    if not predicted_centroids:
-        return False
-
-    predicted_centroids = np.asarray(predicted_centroids)
-    for component in range(1, labeled_gt.max() + 1):
-        coordinates = np.argwhere(labeled_gt == component)
-        gt_centroid = coordinates.mean(axis=0)
-        equivalent_diameter = 2 * np.sqrt(len(coordinates) / np.pi)
-        closest_distance = np.linalg.norm(
-            predicted_centroids - gt_centroid, axis=1).min()
-        if closest_distance <= 0.5 * equivalent_diameter:
-            return True
-    return False
-
-
-def evaluate_centroid(pred_dir, test_files, class_map, min_pred_area,
-                      positive_class="malignant"):
-    """Return (tp, fp, fn, n_normal) at case level for centroid detection."""
+    A mass-present case is detected when centroid_detection_flag is True; a
+    Normal case with any retained prediction is a false alarm. All facts come
+    from the loaded predictions dataset, not the raw masks.
+    """
     tp = fn = 0
     fp = 0
     n_normal = 0
 
-    for fname in test_files:
-        cls = class_map.get(fname, "unknown")
-        pred_path = pred_dir / fname
-        if not pred_path.exists():
-            continue
-        gt = np.array(Image.open(LABELS_TS / fname))
-        pred = np.array(Image.open(pred_path))
-        gt_mass = (gt == MASS_VALUE).astype(np.uint8)
-        filtered_pred = filter_small_components(
-            (pred == MASS_VALUE).astype(np.uint8), min_pred_area)
+    for row in rows:
+        if positive_class == "combined":
+            is_positive = row.pathology in ("malignant", "benign")
+        else:
+            is_positive = row.pathology == positive_class
 
-        is_positive = (
-            cls in ("malignant", "benign")
-            if positive_class == "combined"
-            else cls == positive_class
-        )
         if is_positive:
-            if centroid_detects_ground_truth(gt_mass, filtered_pred):
+            if row.centroid_detection_flag:
                 tp += 1
             else:
                 fn += 1
-        elif cls == "normal":
+        elif row.pathology == "normal":
             n_normal += 1
-            if filtered_pred.any():
+            if row.normal_false_positive:
                 fp += 1
 
-    return int(tp), int(fp), int(fn), int(n_normal)
+    return tp, fp, fn, n_normal
 
 
-def evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant"):
+def evaluate_epoch(rows, positive_class="malignant"):
     """Run centroid eval for one checkpoint, return case recall and FP rate."""
-    ctp, cfp, cfn, n_normal = evaluate_centroid(
-        pred_dir, test_files, class_map, MIN_PRED_AREA,
-        positive_class=positive_class)
+    ctp, cfp, cfn, n_normal = evaluate_centroid(rows, positive_class)
 
     crec = ctp / (ctp + cfn) if (ctp + cfn) > 0 else 0.0
     cfp_rate = cfp / n_normal if n_normal > 0 else 0.0
@@ -190,28 +137,22 @@ def evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant"):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    class_map = get_class_map()
-    if not LABELS_TS.exists():
-        print(f"ERROR: {LABELS_TS} not found")
-        return
-
-    test_files = sorted(f for f in os.listdir(LABELS_TS) if f.endswith(".png"))
-    print(f"Test set: {len(test_files)} files, centroid detection = predicted "
-          f"centroid within 0.5x GT equivalent diameter, noise floor "
-          f"{MIN_PRED_AREA} px")
+    data = load_predictions_dataset()
+    print(f"Loaded predictions dataset: {data.snapshot_id}, "
+          f"{len(data.rows)} rows")
 
     epochs = []
     metrics = {key: [] for key in METRICS}
     benign_metrics = {key: [] for key in METRICS}
     combined_metrics = {key: [] for key in METRICS}
     for folder_name, epoch in EPOCH_DIRS:
-        pred_dir = PRED_ROOT / folder_name
-        if not pred_dir.exists():
-            print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
+        rows = [r for r in data.rows if r.configuration_id == folder_name]
+        if not rows:
+            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
             continue
-        crec, cfp = evaluate_epoch(pred_dir, test_files, class_map, positive_class="malignant")
-        rb_rec, rb_fp = evaluate_epoch(pred_dir, test_files, class_map, positive_class="benign")
-        rc_rec, rc_fp = evaluate_epoch(pred_dir, test_files, class_map, positive_class="combined")
+        crec, cfp = evaluate_epoch(rows, positive_class="malignant")
+        rb_rec, rb_fp = evaluate_epoch(rows, positive_class="benign")
+        rc_rec, rc_fp = evaluate_epoch(rows, positive_class="combined")
         epochs.append(epoch)
         metrics["case_recall"].append(crec)
         metrics["case_fp_rate"].append(cfp)
@@ -245,6 +186,7 @@ def main():
                         f"equivalent diameter, noise floor {MIN_PRED_AREA} px."),
         "noise_floor_px": MIN_PRED_AREA,
         "centroid_definition": "predicted centroid within 0.5x GT equivalent diameter",
+        "dataset_snapshot_id": data.snapshot_id,
         "seed": 42,
         "images": 625,
         "epochs": epochs,

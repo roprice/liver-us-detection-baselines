@@ -3,7 +3,7 @@
   "description": "Single preliminary milestones test run: seed 42, 625 images, triage = any retained mass (no overlap required), noise floor 100 px.",
   "noise_floor_px": 100,
   "triage_definition": "any retained mass (no overlap required)",
-  "dataset_snapshot_id": "05b00c5f5bcc",
+  "dataset_snapshot_id": "659866f795a9",
   "seed": 42,
   "images": 625,
   "epochs": [

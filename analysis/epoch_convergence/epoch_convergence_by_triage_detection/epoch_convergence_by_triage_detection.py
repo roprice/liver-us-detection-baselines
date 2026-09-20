@@ -9,14 +9,14 @@ triage is a single case-level binary:
   - Normal case (no mass): flagged -> false alarm, not flagged -> correct.
 
 Because there is no overlap requirement, an IoU threshold does not apply. The
-only filter is the 100 px noise floor, already baked into the triage_flag column
+only filter is the 100 px noise floor, already baked into the triage_detection_flag column
 of the predictions dataset.
 
 Reports, per milestone checkpoint and per mass grouping (combined / malignant /
 benign): case-level recall and false-positive rate over Normal cases.
 
 Reads the canonical predictions dataset (analysis/predictions_dataset) rather
-than the raw masks; triage_flag and pathology come from there.
+than the raw masks; triage_detection_flag and pathology come from there.
 
 Single-seed run (seed 42, 625 images); no error bars.
 
@@ -107,7 +107,7 @@ def evaluate_triage(rows, positive_class):
     n_normal = 0
 
     for row in rows:
-        flagged = row.triage_flag
+        flagged = row.triage_detection_flag
         if positive_class == "combined":
             is_positive = row.pathology in ("malignant", "benign")
         else:
