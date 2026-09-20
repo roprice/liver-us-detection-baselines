@@ -2,13 +2,11 @@
 converged using real segmentation Dice on hard predictions, rather than the
 training-time pseudo Dice alone.
 
-For each milestone epoch (50/100/150/300/500/750) the script computes
-segmentation Dice (liver, malignant mass, benign mass, combined mass) by
-comparing the saved nnU-Net predictions in
-predictions/preliminary_milestones_test/seed42/predictions_milestones_625images_seed42_ep{N}/
-against the ground-truth test labels, then plots Dice vs epoch and reports the
-tail-epoch slope. The final/best/best mass snapshot folders are evaluated as
-additional rows in the report.
+For each milestone epoch (50/100/150/300/500/750) the script reports
+segmentation Dice (liver, malignant mass, benign mass, combined mass) from the
+canonical predictions dataset (analysis/predictions_dataset), then plots Dice
+vs epoch and reports the tail-epoch slope. The final/best/best mass snapshot
+folders are evaluated as additional rows in the report.
 
 The training-time EMA mass pseudo-Dice trace (from the training log) is overlaid
 in gray, dotted, on its own legend, to show the continuous climb that the sparse
@@ -18,21 +16,33 @@ This is a single-seed script: only seed 42 prediction data exists for this
 preliminary run, so there is no seed averaging or multi-folder ablation loop.
 
 Run from project root:
-    python analysis/epoch_convergence_by_segmentation/epoch_convergence_by_segmentation.py
+    python analysis/epoch_convergence/epoch_convergence_by_segmentation/epoch_convergence_by_segmentation.py
 """
 
 import glob
-import json
 import os
 import re
+import sys
+
 import numpy as np
-from PIL import Image
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.legend as mlegend
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.lines import Line2D
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+
+# Make the project root importable so the predictions-dataset loader can be
+# used regardless of the current working directory.
+sys.path.insert(0, str(PROJECT_ROOT))
+from analysis.predictions_dataset.load_predictions_dataset import (
+    load_predictions_dataset,
+)
 
 plt.rcParams.update({
     'font.family': 'sans-serif',
@@ -68,26 +78,14 @@ PSEUDO_STYLE = dict(color='#8c8c8c', linestyle=':', linewidth=1.2)
 
 # Script lives at analysis/epoch_convergence_by_segmentation/, so this folder is
 # the output dir and the project root is two parents up.
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-base = os.path.dirname(os.path.dirname(SCRIPT_DIR))  # project root
-
-# Root of the per-epoch predictions (single seed 42). The best/best_mass/final
-# folders under this directory are snapshot predictions, evaluated as extra rows
-# below alongside the milestone checkpoints.
-PRED_ROOT = os.path.join(base, "predictions/preliminary_milestones_test/seed42")
-
-# Ground-truth labels and category mapping live in the nnU-Net raw dataset
-# directory (external, gitignored).
-LABELS_DIR = os.path.join(base, "nnUNet_raw/Dataset001_AUL/labelsTs")
-MAPPING_PATH = os.path.join(base, "nnUNet_raw/Dataset001_AUL/case_mapping.json")
 
 # Keep all outputs (Markdown/pdf/png) in the same folder as this script.
 OUT_DIR = SCRIPT_DIR
 
 # Training log (nnU-Net training_log_*.txt) for the single seed-42 run.
-LOG_DIR = os.path.join(
-    base, "nnUNet_results/Dataset001_AUL",
+LOG_DIR = PROJECT_ROOT / "nnUNet_results/Dataset001_AUL" / (
     "nnUNetTrainerMilestones_seed42__nnUNetPlans__2d/fold_0")
+LOG_DIR = str(LOG_DIR)
 
 # Folder name -> milestone epoch whose convergence we want to assess. Matches
 # nnUNetTrainerMilestones.MILESTONE_EPOCHS = {50, 100, 150, 300, 500, 750}.
@@ -100,52 +98,29 @@ EPOCH_DIRS = [
     ("predictions_milestones_625images_seed42_epoch750", 750),
 ]
 
-MASS_VALUE = 2
+# Snapshot checkpoints reported as extra rows, by configuration_id suffix.
+SNAPSHOT_DIRS = [
+    ("best", "best"),
+    ("best_mass", "best mass"),
+    ("final", "final"),
+]
 
 
-def dice_score(pred_mask, label_mask):
-    intersection = np.sum(pred_mask & label_mask)
-    denom = np.sum(pred_mask) + np.sum(label_mask)
-    if denom == 0:
-        return 1.0
-    return 2 * intersection / denom
-
-
-def load_case_mapping(mapping_path):
-    with open(mapping_path) as f:
-        case_mapping = json.load(f)
-    # case_name -> category, restricted to the test split.
-    return {e["case_name"]: e["category"]
-            for e in case_mapping if e["split"] == "test"}
-
-
-def evaluate_predictions(predictions_dir, labels_dir, category_map):
-    """Dice across the test set, with mass Dice split and pooled by category."""
+def evaluate_rows(rows):
+    """Dice across a configuration's rows, with mass Dice split by pathology."""
     liver_scores = []
     malignant_scores = []
     benign_scores = []
     combined_mass_scores = []
 
-    for f in sorted(os.listdir(predictions_dir)):
-        if not f.endswith(".png"):
-            continue
-        case_name = f.replace(".png", "")
-        category = category_map.get(case_name)
-        if category is None:
-            continue
-
-        pred = np.array(Image.open(os.path.join(predictions_dir, f)))
-        label = np.array(Image.open(os.path.join(labels_dir, f)))
-
-        liver_scores.append(dice_score(pred >= 1, label >= 1))
-
-        if category in ("Benign", "Malignant") and np.any(label == MASS_VALUE):
-            mass_dice = dice_score(pred == MASS_VALUE, label == MASS_VALUE)
-            combined_mass_scores.append(mass_dice)
-            if category == "Benign":
-                benign_scores.append(mass_dice)
+    for row in rows:
+        liver_scores.append(row.liver_dice)
+        if row.pathology in ("malignant", "benign"):
+            combined_mass_scores.append(row.mass_dice)
+            if row.pathology == "benign":
+                benign_scores.append(row.mass_dice)
             else:
-                malignant_scores.append(mass_dice)
+                malignant_scores.append(row.mass_dice)
 
     return {
         "liver": np.mean(liver_scores) if liver_scores else 0.0,
@@ -186,29 +161,18 @@ def parse_raw_mass_pseudo_dice(log_path):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    if not os.path.isfile(MAPPING_PATH):
-        print(f"NOT FOUND: case mapping at {MAPPING_PATH}")
-        print("Populate nnUNet_raw/Dataset001_AUL before running.")
-        return
-    category_map = load_case_mapping(MAPPING_PATH)
-
-    # Best/best_mass/final snapshot folders, evaluated alongside the milestones.
-    # final is epoch 1000; best/best_mass are selected dynamically and have no
-    # fixed epoch, so they are reported by name only (and excluded from the plot).
-    SNAPSHOT_DIRS = [
-        ("best", "best"),
-        ("best_mass", "best mass"),
-        ("final", "final"),
-    ]
+    data = load_predictions_dataset()
+    print(f"Loaded predictions dataset: {data.snapshot_id}, "
+          f"{len(data.rows)} rows")
 
     epochs = []
     dice = {"liver": [], "malignant": [], "benign": [], "combined_mass": []}
     for folder_name, epoch in EPOCH_DIRS:
-        pred_dir = os.path.join(PRED_ROOT, folder_name)
-        if not os.path.isdir(pred_dir) or not os.listdir(pred_dir):
-            print(f"WARNING: no predictions in {pred_dir}, skipping epoch {epoch}")
+        rows = [r for r in data.rows if r.configuration_id == folder_name]
+        if not rows:
+            print(f"WARNING: no rows for {folder_name}, skipping epoch {epoch}")
             continue
-        r = evaluate_predictions(pred_dir, LABELS_DIR, category_map)
+        r = evaluate_rows(rows)
         epochs.append(epoch)
         for key in dice:
             dice[key].append(r[key])
@@ -216,13 +180,12 @@ def main():
     # Snapshots reported as extra rows alongside the milestones.
     snapshots = []
     for folder_label, display_label in SNAPSHOT_DIRS:
-        pred_dir = os.path.join(
-            PRED_ROOT, f"predictions_milestones_625images_seed42_{folder_label}")
-        if not os.path.isdir(pred_dir) or not os.listdir(pred_dir):
-            print(f"WARNING: no predictions in {pred_dir}, skipping {folder_label}")
+        config_id = f"predictions_milestones_625images_seed42_{folder_label}"
+        rows = [r for r in data.rows if r.configuration_id == config_id]
+        if not rows:
+            print(f"WARNING: no rows for {config_id}, skipping {folder_label}")
             continue
-        snapshots.append((display_label,
-                          evaluate_predictions(pred_dir, LABELS_DIR, category_map)))
+        snapshots.append((display_label, evaluate_rows(rows)))
 
     if not epochs:
         print("No per-epoch predictions found, exiting")
