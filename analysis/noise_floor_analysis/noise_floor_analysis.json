@@ -1,0 +1,54 @@
+{
+  "description": "Sweep of a relative noise floor (fraction of image area) versus the fixed 100 px baseline. 'lost' counts mass-present cases that were detected under 100 px but missed under the candidate floor.",
+  "aul_mean_area_px": 341420,
+  "baseline_floor_px": 100,
+  "criteria": [
+    "triage",
+    "centroid_050",
+    "overlap_020"
+  ],
+  "results": [
+    {
+      "fraction": 5e-05,
+      "aul_average_px": 17,
+      "triage_lost": 0,
+      "centroid_050_lost": 0,
+      "overlap_020_lost": 0
+    },
+    {
+      "fraction": 0.0001,
+      "aul_average_px": 34,
+      "triage_lost": 0,
+      "centroid_050_lost": 0,
+      "overlap_020_lost": 0
+    },
+    {
+      "fraction": 0.0002,
+      "aul_average_px": 68,
+      "triage_lost": 0,
+      "centroid_050_lost": 0,
+      "overlap_020_lost": 0
+    },
+    {
+      "fraction": 0.0003,
+      "aul_average_px": 102,
+      "triage_lost": 0,
+      "centroid_050_lost": 0,
+      "overlap_020_lost": 0
+    },
+    {
+      "fraction": 0.0004,
+      "aul_average_px": 136,
+      "triage_lost": 9,
+      "centroid_050_lost": 0,
+      "overlap_020_lost": 0
+    },
+    {
+      "fraction": 0.0005,
+      "aul_average_px": 170,
+      "triage_lost": 9,
+      "centroid_050_lost": 0,
+      "overlap_020_lost": 0
+    }
+  ]
+}
