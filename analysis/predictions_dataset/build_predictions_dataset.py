@@ -43,8 +43,8 @@ CONNECTIVITY = 2  # Full connectivity for 2D masks: 8-connected components.
 VALID_LABELS = {0, 1, 2}
 
 # The preliminary milestones trainer saves these named checkpoints. The mapping
-# labels each to its training epoch; ``best`` and ``best_mass`` are selected
-# dynamically and have no fixed epoch, so they are represented as None.
+# labels each to its training epoch. ``best`` and ``best_mass`` are selected
+# dynamically, so their epoch is resolved per seed via BEST_EPOCHS below.
 CHECKPOINT_EPOCHS = {
     "epoch50": 50,
     "epoch100": 100,
@@ -55,6 +55,17 @@ CHECKPOINT_EPOCHS = {
     "best": None,
     "best_mass": None,
     "final": 1000,
+}
+
+# Epoch at which ``best`` / ``best_mass`` were last selected, per seed, recovered
+# from each seed's training log (the epoch of the final EMA-improving update).
+BEST_EPOCHS = {
+    ("best", 42): 838,
+    ("best", 43): 695,
+    ("best", 44): 999,
+    ("best_mass", 42): 838,
+    ("best_mass", 43): 708,
+    ("best_mass", 44): 999,
 }
 
 FIELDNAMES = (
@@ -273,7 +284,11 @@ def parse_prediction_directory(directory_name):
         raise InputValidationError(
             f"Unrecognized checkpoint '{checkpoint}' in {directory_name}"
         )
-    return seed, CHECKPOINT_EPOCHS[checkpoint], checkpoint, "PlainConvUNet"
+    if checkpoint in ("best", "best_mass"):
+        epoch = BEST_EPOCHS[(checkpoint, seed)]
+    else:
+        epoch = CHECKPOINT_EPOCHS[checkpoint]
+    return seed, epoch, checkpoint, "PlainConvUNet"
 
 
 def discover_configurations():
