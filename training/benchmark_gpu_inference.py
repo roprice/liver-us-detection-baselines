@@ -96,6 +96,10 @@ def main():
                     "nnU-Net checkpoints.")
     parser.add_argument("--nnunet-raw", required=True,
                         help="Path to nnUNet_raw (contains the dataset's imagesTs)")
+    parser.add_argument("--images-dir", default=None,
+                        help="Override the image directory (e.g. a folder of "
+                             "symlinked val images). Defaults to imagesTs under "
+                             "--nnunet-raw.")
     parser.add_argument("--dataset-name", default="Dataset001_AUL")
     parser.add_argument("--dataset-id", default="1")
     parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
@@ -147,7 +151,10 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    test_images_dir = Path(args.nnunet_raw) / args.dataset_name / "imagesTs"
+    if args.images_dir:
+        test_images_dir = Path(args.images_dir)
+    else:
+        test_images_dir = Path(args.nnunet_raw) / args.dataset_name / "imagesTs"
     case_lists = create_lists_from_splitted_dataset_folder(str(test_images_dir), ".png")
     case_ids = [Path(c[0]).name[:-len("_0000.png")] for c in case_lists]
     print(f"Found {len(case_lists)} test images in {test_images_dir}")
@@ -296,6 +303,7 @@ def main():
         "warmup_images": args.warmup_images,
         "device": args.device,
         "test_image_count": len(case_lists),
+        "images_dir": str(test_images_dir),
         "notes": (
             "inference_seconds covers only predict_logits_from_preprocessed_data "
             "(the sliding-window forward pass), bracketed with "
