@@ -4,7 +4,8 @@ Preliminary milestones run: seeds 42/43/44, 625 images each.
 
 Values are malignant case-level recall (fraction of malignant cases detected) under seven criteria: triage, three overlap IoU tiers, and three centroid tolerance tiers. Mean ± standard deviation across seeds.
 
-| Epoch | Triage | Overlap (IoU>0.0) | Overlap (IoU>0.2) | Overlap (IoU>0.5) | Centroid (1.0xD) | Centroid (0.5xD) | Centroid (0.25xD) |
+**Predetermined saved checkpoints**
+| Checkpoint | Triage | Overlap (IoU>0.0) | Overlap (IoU>0.2) | Overlap (IoU>0.5) | Centroid (1.0xD) | Centroid (0.5xD) | Centroid (0.25xD) |
 |------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
 | 50 | 0.9231 ± 0.0266 | 0.9026 ± 0.0320 | 0.8462 ± 0.0671 | 0.6974 ± 0.0582 | 0.9026 ± 0.0320 | 0.8667 ± 0.0540 | 0.7744 ± 0.0470 |
 | 100 | 0.9385 ± 0.0154 | 0.9231 ± 0.0154 | 0.8872 ± 0.0235 | 0.7385 ± 0.0308 | 0.9231 ± 0.0154 | 0.9026 ± 0.0387 | 0.8256 ± 0.0387 |
@@ -12,3 +13,13 @@ Values are malignant case-level recall (fraction of malignant cases detected) un
 | 300 | 0.9590 ± 0.0320 | 0.9282 ± 0.0582 | 0.9077 ± 0.0671 | 0.7949 ± 0.0387 | 0.9282 ± 0.0582 | 0.9077 ± 0.0671 | 0.8615 ± 0.0555 |
 | 500 | 0.9590 ± 0.0089 | 0.9385 ± 0.0154 | 0.9026 ± 0.0470 | 0.7846 ± 0.0266 | 0.9385 ± 0.0154 | 0.9179 ± 0.0178 | 0.8564 ± 0.0355 |
 | 750 | 0.9692 ± 0.0154 | 0.9538 ± 0.0266 | 0.9231 ± 0.0154 | 0.8205 ± 0.0495 | 0.9538 ± 0.0266 | 0.9282 ± 0.0235 | 0.8564 ± 0.0320 |
+
+**Selected and final checkpoints**
+| Checkpoint | Triage | Overlap (IoU>0.0) | Overlap (IoU>0.2) | Overlap (IoU>0.5) | Centroid (1.0xD) | Centroid (0.5xD) | Centroid (0.25xD) |
+|------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|
+| Best | 0.9744 ± 0.0089 | 0.9538 ± 0.0154 | 0.9179 ± 0.0235 | 0.8205 ± 0.0387 | 0.9538 ± 0.0154 | 0.9385 ± 0.0000 | 0.8615 ± 0.0266 |
+| Best mass | 0.9744 ± 0.0089 | 0.9538 ± 0.0154 | 0.9179 ± 0.0235 | 0.8103 ± 0.0444 | 0.9538 ± 0.0154 | 0.9282 ± 0.0178 | 0.8564 ± 0.0320 |
+| 1000 (Final) | 0.9692 ± 0.0154 | 0.9538 ± 0.0154 | 0.9077 ± 0.0266 | 0.8103 ± 0.0444 | 0.9538 ± 0.0154 | 0.9385 ± 0.0000 | 0.8564 ± 0.0320 |
+
+`Best` epoch was 838 for seed 42, 695 for seed 43, and 999 for seed 44.
+`Best mass` epoch was 838 for seed 42, 708 for seed 43, and 999 for seed 44.

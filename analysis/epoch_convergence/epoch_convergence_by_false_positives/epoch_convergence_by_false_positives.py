@@ -41,6 +41,26 @@ from analysis.predictions_dataset.load_predictions_dataset import (
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
+# Snapshot checkpoints reported as extra rows, by configuration_id suffix.
+# ``best``/``best_mass`` have per-seed selection epochs (see BEST_EPOCHS), so
+# their epoch label is a placeholder reset below.
+SNAPSHOT_DIRS = {
+    "best": ("best", "Best"),
+    "best_mass": ("best mass", "Best mass"),
+    "final": ("1000", "Final"),
+}
+
+# Epoch at which ``best`` / ``best_mass`` were last selected, per seed. Recovered
+# from each seed's training log (the epoch of the final EMA-improving update).
+BEST_EPOCHS = {
+    ("best", 42): 838,
+    ("best", 43): 695,
+    ("best", 44): 999,
+    ("best_mass", 42): 838,
+    ("best_mass", 43): 708,
+    ("best_mass", 44): 999,
+}
+
 plt.rcParams.update({
     'font.family': 'sans-serif',
     'font.sans-serif': ['Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
@@ -74,6 +94,29 @@ def count_false_positives(rows):
     normal = [r for r in rows if r.pathology == "normal"]
     fp_count = sum(1 for r in normal if r.normal_false_positive)
     return fp_count, len(normal)
+
+
+def summarize_checkpoint(data, suffix):
+    """Return (seed_counts, fp_count_mean, fp_count_std, fp_rate_mean, fp_rate_std, n_normal)."""
+    seed_counts = []
+    n_normal = None
+    for seed in SEEDS:
+        config_id = f"predictions_milestones_625images_seed{seed}_{suffix}"
+        rows = [r for r in data.rows if r.configuration_id == config_id]
+        if not rows:
+            print(f"WARNING: no rows for {config_id}")
+            continue
+        fp_count, n = count_false_positives(rows)
+        if n_normal is None:
+            n_normal = n
+        seed_counts.append(fp_count)
+
+    rates = [c / n_normal if n_normal else 0.0 for c in seed_counts]
+    count_mean = float(np.nanmean(seed_counts)) if seed_counts else float('nan')
+    count_std = float(np.nanstd(seed_counts, ddof=1)) if seed_counts else float('nan')
+    rate_mean = float(np.nanmean(rates)) if rates else float('nan')
+    rate_std = float(np.nanstd(rates, ddof=1)) if rates else float('nan')
+    return seed_counts, count_mean, count_std, rate_mean, rate_std, n_normal
 
 
 def main():
@@ -119,6 +162,15 @@ def main():
         print("No per-epoch predictions found, exiting")
         return
 
+    # Selected and final checkpoints reported as extra rows.
+    snapshots = []
+    for suffix, (epoch_label, display_name) in SNAPSHOT_DIRS.items():
+        seed_counts, count_m, count_s, rate_m, rate_s, _ = summarize_checkpoint(data, suffix)
+        if not seed_counts:
+            print(f"WARNING: no rows for {suffix}, skipping")
+            continue
+        snapshots.append((suffix, epoch_label, display_name, seed_counts, rate_m, rate_s, count_m, count_s))
+
     # --- Terminal table ---
     print("\nEpoch | Seed 42 | Seed 43 | Seed 44 | FP rate | FP count")
     print("------|---------|---------|---------|---------|----------")
@@ -128,6 +180,14 @@ def main():
               f"{fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
               f"{fp_count_means[i]:.2f} ± {fp_count_stds[i]:.2f}")
 
+    print("\nSelected and final checkpoints")
+    print("Epoch | Seed 42 | Seed 43 | Seed 44 | FP rate | FP count")
+    print("------|---------|---------|---------|---------|----------")
+    for suffix, epoch_label, display_name, sc, rate_m, rate_s, count_m, count_s in snapshots:
+        print(f"{epoch_label:<17} | {sc[0]}/{n_normal} | {sc[1]}/{n_normal} | {sc[2]}/{n_normal} | "
+              f"{rate_m:.4f} ± {rate_s:.4f} | "
+              f"{count_m:.2f} ± {count_s:.2f}")
+
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / "epoch_convergence_by_false_positives.json"
     payload = {
@@ -135,10 +195,27 @@ def main():
         "images": 625,
         "normal_cases": n_normal,
         "dataset_snapshot_id": data.snapshot_id,
+        "best_epochs": {
+            str(seed): BEST_EPOCHS[("best", seed)] for seed in SEEDS
+        },
+        "best_mass_epochs": {
+            str(seed): BEST_EPOCHS[("best_mass", seed)] for seed in SEEDS
+        },
         "epochs": epochs,
         "fp_count_per_seed": fp_count_per_seed,
         "fp_count": {"mean": fp_count_means, "std": fp_count_stds},
         "fp_rate": {"mean": fp_rate_means, "std": fp_rate_stds},
+        "snapshots": [
+            {
+                "suffix": suffix,
+                "epoch_label": epoch_label,
+                "display_name": display_name,
+                "fp_count_per_seed": sc,
+                "fp_count": {"mean": count_m, "std": count_s},
+                "fp_rate": {"mean": rate_m, "std": rate_s},
+            }
+            for suffix, epoch_label, display_name, sc, rate_m, rate_s, count_m, count_s in snapshots
+        ],
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -158,7 +235,8 @@ def main():
         "",
         f"Normal test cases: {n_normal}.",
         "",
-        "| Epoch | Seed 42 | Seed 43 | Seed 44 | Mean FP rate | Mean FP count |",
+        "**Predetermined saved checkpoints**",
+        "| Checkpoint | Seed 42 | Seed 43 | Seed 44 | Mean FP rate | Mean FP count |",
         "|------:|:-------:|:-------:|:-------:|-------------:|--------------:|",
     ]
     for i, ep in enumerate(epochs):
@@ -168,7 +246,22 @@ def main():
             f"{fp_rate_means[i]:.4f} ± {fp_rate_stds[i]:.4f} | "
             f"{fp_count_means[i]:.2f} ± {fp_count_stds[i]:.2f} |"
         )
-    md_lines.append("")
+    md_lines.extend([
+        "",
+        "**Selected and final checkpoints**",
+        "| Checkpoint | Seed 42 | Seed 43 | Seed 44 | Mean FP rate | Mean FP count |",
+        "|------:|:-------:|:-------:|:-------:|-------------:|--------------:|",
+    ])
+    for suffix, epoch_label, display_name, sc, rate_m, rate_s, count_m, count_s in snapshots:
+        label = display_name if suffix in ("best", "best_mass") else f"{epoch_label} ({display_name})"
+        md_lines.append(
+            f"| {label} | {sc[0]}/{n_normal} | {sc[1]}/{n_normal} | {sc[2]}/{n_normal} | "
+            f"{rate_m:.4f} ± {rate_s:.4f} | "
+            f"{count_m:.2f} ± {count_s:.2f} |"
+        )
+    best_s = f"`Best` epoch was {BEST_EPOCHS[('best', 42)]} for seed 42, {BEST_EPOCHS[('best', 43)]} for seed 43, and {BEST_EPOCHS[('best', 44)]} for seed 44."
+    best_mass_s = f"`Best mass` epoch was {BEST_EPOCHS[('best_mass', 42)]} for seed 42, {BEST_EPOCHS[('best_mass', 43)]} for seed 43, and {BEST_EPOCHS[('best_mass', 44)]} for seed 44."
+    md_lines.extend(["", best_s, best_mass_s, ""])
     md_path = OUT_DIR / "epoch_convergence_by_false_positives.md"
     with open(md_path, "w") as f:
         f.write("\n".join(md_lines))

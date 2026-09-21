@@ -5,11 +5,11 @@
 __pycache__/
 *.pyc
 
-
 nnUNet_results
 nnUNet_raw
 nnUNet_preprocessed
 
-predictions
-
 SMC-LUD
+
+# organized predictions
+predictions

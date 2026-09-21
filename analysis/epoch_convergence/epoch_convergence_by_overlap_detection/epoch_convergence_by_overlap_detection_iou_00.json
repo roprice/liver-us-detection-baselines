@@ -3,7 +3,7 @@
   "description": "Three preliminary milestones test runs: seeds 42/43/44, 625 images each, detection = IoU > 0, noise floor 0.03% of image area. Values are mean \u00b1 std across seeds.",
   "noise_floor": "0.03% of image area",
   "detection_definition": "IoU > 0",
-  "dataset_snapshot_id": "d922c8e3daa0",
+  "dataset_snapshot_id": "be770da389cc",
   "seeds": [
     42,
     43,
@@ -18,6 +18,16 @@
     500,
     750
   ],
+  "best_epochs": {
+    "42": 838,
+    "43": 695,
+    "44": 999
+  },
+  "best_mass_epochs": {
+    "42": 838,
+    "43": 708,
+    "44": 999
+  },
   "combined": {
     "Detection": {
       "mean": [
@@ -131,5 +141,166 @@
         0.03849001794597505
       ]
     }
+  },
+  "snapshots": {
+    "combined": [
+      {
+        "suffix": "best",
+        "display": "Best",
+        "per_seed_recall": [
+          0.8526315789473684,
+          0.8526315789473684,
+          0.8526315789473684
+        ],
+        "detection": {
+          "mean": 0.8526315789473684,
+          "std": 0.0
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      },
+      {
+        "suffix": "best_mass",
+        "display": "Best mass",
+        "per_seed_recall": [
+          0.8526315789473684,
+          0.8526315789473684,
+          0.8526315789473684
+        ],
+        "detection": {
+          "mean": 0.8526315789473684,
+          "std": 0.0
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      },
+      {
+        "suffix": "final",
+        "display": "Final",
+        "per_seed_recall": [
+          0.8421052631578947,
+          0.8315789473684211,
+          0.8526315789473684
+        ],
+        "detection": {
+          "mean": 0.8421052631578947,
+          "std": 0.010526315789473661
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      }
+    ],
+    "malignant": [
+      {
+        "suffix": "best",
+        "display": "Best",
+        "per_seed_recall": [
+          0.9538461538461539,
+          0.9384615384615385,
+          0.9692307692307692
+        ],
+        "detection": {
+          "mean": 0.9538461538461539,
+          "std": 0.015384615384615385
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      },
+      {
+        "suffix": "best_mass",
+        "display": "Best mass",
+        "per_seed_recall": [
+          0.9538461538461539,
+          0.9384615384615385,
+          0.9692307692307692
+        ],
+        "detection": {
+          "mean": 0.9538461538461539,
+          "std": 0.015384615384615385
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      },
+      {
+        "suffix": "final",
+        "display": "Final",
+        "per_seed_recall": [
+          0.9538461538461539,
+          0.9384615384615385,
+          0.9692307692307692
+        ],
+        "detection": {
+          "mean": 0.9538461538461539,
+          "std": 0.015384615384615385
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      }
+    ],
+    "benign": [
+      {
+        "suffix": "best",
+        "display": "Best",
+        "per_seed_recall": [
+          0.6333333333333333,
+          0.6666666666666666,
+          0.6
+        ],
+        "detection": {
+          "mean": 0.6333333333333333,
+          "std": 0.033333333333333326
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      },
+      {
+        "suffix": "best_mass",
+        "display": "Best mass",
+        "per_seed_recall": [
+          0.6333333333333333,
+          0.6666666666666666,
+          0.6
+        ],
+        "detection": {
+          "mean": 0.6333333333333333,
+          "std": 0.033333333333333326
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      },
+      {
+        "suffix": "final",
+        "display": "Final",
+        "per_seed_recall": [
+          0.6,
+          0.6,
+          0.6
+        ],
+        "detection": {
+          "mean": 0.6,
+          "std": 0.0
+        },
+        "fp_rate": {
+          "mean": 0.044444444444444446,
+          "std": 0.03849001794597505
+        }
+      }
+    ]
   }
 }

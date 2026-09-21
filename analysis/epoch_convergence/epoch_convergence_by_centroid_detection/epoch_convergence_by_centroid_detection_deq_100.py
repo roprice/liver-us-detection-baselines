@@ -53,6 +53,24 @@ OUT_BASE = "epoch_convergence_by_centroid_detection_deq_100"
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
+# Snapshot checkpoints (selected / final), by configuration_id suffix.
+SNAPSHOTS = [
+    ("best", "Best"),
+    ("best_mass", "Best mass"),
+    ("final", "Final"),
+]
+
+# Epoch at which ``best`` / ``best_mass`` were last selected, per seed. Recovered
+# from each seed's training log (the epoch of the final EMA-improving update).
+BEST_EPOCHS = {
+    ("best", 42): 838,
+    ("best", 43): 695,
+    ("best", 44): 999,
+    ("best_mass", 42): 838,
+    ("best_mass", 43): 708,
+    ("best_mass", 44): 999,
+}
+
 plt.rcParams.update({
     'font.family': 'sans-serif',
     'font.sans-serif': ['Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
@@ -130,6 +148,29 @@ def evaluate_epoch(rows, positive_class="malignant"):
     return crec, cfp_rate
 
 
+def summarize_snapshot(data, positive_class, suffix):
+    """Return (per_seed_recall, recall_mean, recall_std, fp_mean, fp_std) for one
+    snapshot checkpoint across seeds."""
+    recalls = []
+    fp_rates = []
+    for seed in SEEDS:
+        folder = f"predictions_milestones_625images_seed{seed}_{suffix}"
+        rows = [r for r in data.rows if r.configuration_id == folder]
+        if not rows:
+            print(f"WARNING: no rows for {folder}")
+            recalls.append(float('nan'))
+            fp_rates.append(float('nan'))
+            continue
+        rec, fp = evaluate_epoch(rows, positive_class)
+        recalls.append(rec)
+        fp_rates.append(fp)
+    recall_mean = float(np.nanmean(recalls)) if recalls else float('nan')
+    recall_std = float(np.nanstd(recalls, ddof=1)) if recalls else float('nan')
+    fp_mean = float(np.nanmean(fp_rates)) if fp_rates else float('nan')
+    fp_std = float(np.nanstd(fp_rates, ddof=1)) if fp_rates else float('nan')
+    return recalls, recall_mean, recall_std, fp_mean, fp_std
+
+
 def summarize_epochs(data, positive_class):
     """Return {metric: (means, stds)} across seeds, per epoch."""
     means = {key: [] for key in METRICS}
@@ -176,6 +217,22 @@ def main():
     benign = summarize_epochs(data, "benign")
 
     stats = {"combined": combined, "malignant": malignant, "benign": benign}
+
+    # Snapshot detection per grouping.
+    snapshot_stats = {}
+    for group in ("combined", "malignant", "benign"):
+        entries = []
+        for suffix, display in SNAPSHOTS:
+            recalls, rec_m, rec_s, fp_m, fp_s = summarize_snapshot(data, group, suffix)
+            entries.append({
+                "suffix": suffix,
+                "display": display,
+                "per_seed_recall": recalls,
+                "detection": {"mean": rec_m, "std": rec_s},
+                "fp_rate": {"mean": fp_m, "std": fp_s},
+            })
+        snapshot_stats[group] = entries
+
     epochs = EPOCHS
 
     # --- Terminal tables ---
@@ -183,11 +240,15 @@ def main():
                          ("Malignant", "malignant"),
                          ("Benign", "benign")]:
         means, stds = stats[group]
-        print(f"\n{title} — Epoch | CRec | CFP")
+        print(f"\n{title} — Checkpoint | CRec | CFP")
         print(f"{'':>7}  ------|------|-----")
         for i, ep in enumerate(epochs):
             print(f"{ep:>5} | {fmt(means['case_recall'][i], stds['case_recall'][i])} | "
                   f"{fmt(means['case_fp_rate'][i], stds['case_fp_rate'][i])}")
+        print(f"{'':>7}  --- selected/final ---")
+        for e in snapshot_stats[group]:
+            print(f"{e['display']:<5} | {fmt(e['detection']['mean'], e['detection']['std'])} | "
+                  f"{fmt(e['fp_rate']['mean'], e['fp_rate']['std'])}")
 
     # --- JSON (source of truth) ---
     json_path = OUT_DIR / f"{OUT_BASE}.json"
@@ -204,9 +265,12 @@ def main():
         "seeds": SEEDS,
         "images": 625,
         "epochs": epochs,
+        "best_epochs": {str(s): BEST_EPOCHS[("best", s)] for s in SEEDS},
+        "best_mass_epochs": {str(s): BEST_EPOCHS[("best_mass", s)] for s in SEEDS},
         "combined": metric_payload(combined[0], combined[1]),
         "malignant": metric_payload(malignant[0], malignant[1]),
         "benign": metric_payload(benign[0], benign[1]),
+        "snapshots": snapshot_stats,
     }
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=2)
@@ -237,7 +301,8 @@ def main():
         means, stds = stats[group]
         md_lines.append(f"## {title}")
         md_lines.append("")
-        md_lines.append("| Epoch | Detection | Normal cases FP rate |")
+        md_lines.append("**Predetermined saved checkpoints**")
+        md_lines.append("| Checkpoint | Detection | Normal cases FP rate |")
         md_lines.append("|------:|----------:|-------------------:|")
         for i, ep in enumerate(epochs):
             md_lines.append(
@@ -245,6 +310,21 @@ def main():
                 f"{fmt(means['case_fp_rate'][i], stds['case_fp_rate'][i])} |"
             )
         md_lines.append("")
+        md_lines.append("**Selected and final checkpoints**")
+        md_lines.append("| Checkpoint | Detection | Normal cases FP rate |")
+        md_lines.append("|------:|----------:|-------------------:|")
+        for e in snapshot_stats[group]:
+            label = e["display"] if e["suffix"] in ("best", "best_mass") else f"1000 ({e['display']})"
+            md_lines.append(
+                f"| {label} | {fmt(e['detection']['mean'], e['detection']['std'])} | "
+                f"{fmt(e['fp_rate']['mean'], e['fp_rate']['std'])} |"
+            )
+        best_s = (f"`Best` epoch was {BEST_EPOCHS[('best', 42)]} for seed 42, "
+                  f"{BEST_EPOCHS[('best', 43)]} for seed 43, and {BEST_EPOCHS[('best', 44)]} for seed 44.")
+        best_mass_s = (f"`Best mass` epoch was {BEST_EPOCHS[('best_mass', 42)]} for seed 42, "
+                       f"{BEST_EPOCHS[('best_mass', 43)]} for seed 43, and {BEST_EPOCHS[('best_mass', 44)]} for seed 44.")
+        md_lines.extend(["", best_s, best_mass_s, ""])
+
     md_path = OUT_DIR / f"{OUT_BASE}.md"
     with open(md_path, "w") as f:
         f.write("\n".join(md_lines))

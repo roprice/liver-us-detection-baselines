@@ -6,7 +6,17 @@
   ],
   "images": 625,
   "normal_cases": 15,
-  "dataset_snapshot_id": "d922c8e3daa0",
+  "dataset_snapshot_id": "be770da389cc",
+  "best_epochs": {
+    "42": 838,
+    "43": 695,
+    "44": 999
+  },
+  "best_mass_epochs": {
+    "42": 838,
+    "43": 708,
+    "44": 999
+  },
   "epochs": [
     50,
     100,
@@ -82,5 +92,61 @@
       0.03849001794597505,
       0.03849001794597505
     ]
-  }
+  },
+  "snapshots": [
+    {
+      "suffix": "best",
+      "epoch_label": "best",
+      "display_name": "Best",
+      "fp_count_per_seed": [
+        1,
+        1,
+        0
+      ],
+      "fp_count": {
+        "mean": 0.6666666666666666,
+        "std": 0.5773502691896258
+      },
+      "fp_rate": {
+        "mean": 0.044444444444444446,
+        "std": 0.03849001794597505
+      }
+    },
+    {
+      "suffix": "best_mass",
+      "epoch_label": "best mass",
+      "display_name": "Best mass",
+      "fp_count_per_seed": [
+        1,
+        1,
+        0
+      ],
+      "fp_count": {
+        "mean": 0.6666666666666666,
+        "std": 0.5773502691896258
+      },
+      "fp_rate": {
+        "mean": 0.044444444444444446,
+        "std": 0.03849001794597505
+      }
+    },
+    {
+      "suffix": "final",
+      "epoch_label": "1000",
+      "display_name": "Final",
+      "fp_count_per_seed": [
+        1,
+        1,
+        0
+      ],
+      "fp_count": {
+        "mean": 0.6666666666666666,
+        "std": 0.5773502691896258
+      },
+      "fp_rate": {
+        "mean": 0.044444444444444446,
+        "std": 0.03849001794597505
+      }
+    }
+  ]
 }

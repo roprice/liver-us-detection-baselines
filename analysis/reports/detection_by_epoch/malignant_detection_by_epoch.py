@@ -35,6 +35,24 @@ OUT_DIR = SCRIPT_DIR
 VIEW = "malignant"
 OUT_BASE = "malignant_detection_by_epoch"
 
+# Epoch at which ``best`` / ``best_mass`` were last selected, per seed. Recovered
+# from each seed's training log (the epoch of the final EMA-improving update).
+BEST_EPOCHS = {
+    ("best", 42): 838,
+    ("best", 43): 695,
+    ("best", 44): 999,
+    ("best_mass", 42): 838,
+    ("best_mass", 43): 708,
+    ("best_mass", 44): 999,
+}
+
+# Snapshot rows for the "selected and final" table, in display order.
+SNAPSHOTS = [
+    ("best", "Best"),
+    ("best_mass", "Best mass"),
+    ("final", "1000 (Final)"),
+]
+
 # Root holding the individual per-criterion analysis outputs.
 ANALYSIS_ROOT = PROJECT_ROOT / "analysis/epoch_convergence"
 
@@ -90,6 +108,18 @@ def load_recall(rel_path):
     return data["epochs"], det["mean"], det["std"]
 
 
+def load_snapshot(rel_path, suffix):
+    """Return (mean, std) of case recall for one snapshot checkpoint, or None."""
+    path = ANALYSIS_ROOT / rel_path
+    with open(path) as f:
+        data = json.load(f)
+    snaps = data.get("snapshots", {}).get(VIEW, [])
+    for e in snaps:
+        if e["suffix"] == suffix:
+            return e["detection"]["mean"], e["detection"]["std"]
+    return None
+
+
 def fmt(mean, std):
     return f"{mean:.4f} ± {std:.4f}"
 
@@ -116,7 +146,7 @@ def main():
         return
 
     # --- Terminal table ---
-    header = f"{'Epoch':>5} | " + " | ".join(f"{l:>22}" for l, *_ in series)
+    header = f"{'Checkpoint':>10} | " + " | ".join(f"{l:>22}" for l, *_ in series)
     print(header)
     print("-" * len(header))
     for i, ep in enumerate(epochs):
@@ -132,13 +162,34 @@ def main():
         "detected) under seven criteria: triage, three overlap IoU tiers, and "
         "three centroid tolerance tiers. Mean ± standard deviation across seeds.",
         "",
-        "| Epoch |" + "".join(f" {l} |" for l, *_ in series),
+        "**Predetermined saved checkpoints**",
+        "| Checkpoint |" + "".join(f" {l} |" for l, *_ in series),
     ]
     md_lines.append("|------:|" + "".join("--------------:|" for _ in series))
     for i, ep in enumerate(epochs):
         md_lines.append(f"| {ep} |" +
                         "".join(f" {fmt(m[i], s[i])} |" for _, m, s, *_ in series))
-    md_lines.append("")
+
+    # Selected and final checkpoints table: one row per snapshot, one column per criterion.
+    md_lines.extend([
+        "",
+        "**Selected and final checkpoints**",
+        "| Checkpoint |" + "".join(f" {l} |" for l, *_ in series),
+    ])
+    md_lines.append("|------:|" + "".join("--------------:|" for _ in series))
+    for suffix, display in SNAPSHOTS:
+        cells = []
+        for key, rel_path, label, color, linestyle in CRITERIA:
+            snap = load_snapshot(rel_path, suffix)
+            cells.append(fmt(snap[0], snap[1]) if snap else "—")
+        md_lines.append(f"| {display} |" + "".join(f" {c} |" for c in cells))
+
+    best_s = (f"`Best` epoch was {BEST_EPOCHS[('best', 42)]} for seed 42, "
+              f"{BEST_EPOCHS[('best', 43)]} for seed 43, and {BEST_EPOCHS[('best', 44)]} for seed 44.")
+    best_mass_s = (f"`Best mass` epoch was {BEST_EPOCHS[('best_mass', 42)]} for seed 42, "
+                   f"{BEST_EPOCHS[('best_mass', 43)]} for seed 43, and {BEST_EPOCHS[('best_mass', 44)]} for seed 44.")
+    md_lines.extend(["", best_s, best_mass_s, ""])
+
     md_path = OUT_DIR / f"{OUT_BASE}.md"
     with open(md_path, "w") as f:
         f.write("\n".join(md_lines))

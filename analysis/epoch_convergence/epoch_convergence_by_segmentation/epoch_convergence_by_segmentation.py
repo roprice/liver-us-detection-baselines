@@ -88,11 +88,24 @@ LOG_DIR = PROJECT_ROOT / "nnUNet_results/Dataset001_AUL" / (
 LOG_DIR = str(LOG_DIR)
 
 # Snapshot checkpoints reported as extra rows, by configuration_id suffix.
+# Display label is human-readable; ``best``/``best_mass`` selection epochs are
+# noted below the markdown table (see BEST_EPOCHS).
 SNAPSHOT_DIRS = [
-    ("best", "best"),
-    ("best_mass", "best mass"),
-    ("final", "final"),
+    ("best", "Best"),
+    ("best_mass", "Best mass"),
+    ("final", "1000 (Final)"),
 ]
+
+# Epoch at which ``best`` / ``best_mass`` were last selected, per seed. Recovered
+# from each seed's training log (the epoch of the final EMA-improving update).
+BEST_EPOCHS = {
+    ("best", 42): 838,
+    ("best", 43): 695,
+    ("best", 44): 999,
+    ("best_mass", 42): 838,
+    ("best_mass", 43): 708,
+    ("best_mass", 44): 999,
+}
 
 DICE_KEYS = ["liver", "malignant", "benign", "combined_mass"]
 
@@ -210,7 +223,7 @@ def main():
     slope = ((tail_metric[-1] - tail_metric[-tail_n]) / (epochs[-1] - epochs[-tail_n])
              if epochs[-1] != epochs[-tail_n] else 0.0)
 
-    print("Epoch | Liver | Malignant | Benign | Combined mass")
+    print("Checkpoint | Liver | Malignant | Benign | Combined mass")
     print("------|-------|-----------|--------|--------------")
     for i, ep in enumerate(epochs):
         print(f"{ep:>5} | {fmt(dice_means['liver'][i], dice_stds['liver'][i])} | "
@@ -233,7 +246,8 @@ def main():
         "",
         "Values are mean ± standard deviation across the three seeds.",
         "",
-        "| Epoch | Liver Dice | Malignant mass Dice | Benign mass Dice | Combined mass Dice |",
+        "**Predetermined saved checkpoints**",
+        "| Checkpoint | Liver Dice | Malignant mass Dice | Benign mass Dice | Combined mass Dice |",
         "|------:|-----------:|--------------------:|----------------:|-------------------:|",
     ]
     for i, ep in enumerate(epochs):
@@ -243,6 +257,12 @@ def main():
             f"{fmt(dice_means['benign'][i], dice_stds['benign'][i])} | "
             f"{fmt(dice_means['combined_mass'][i], dice_stds['combined_mass'][i])} |"
         )
+    md_lines.extend([
+        "",
+        "**Selected and final checkpoints**",
+        "| Checkpoint | Liver Dice | Malignant mass Dice | Benign mass Dice | Combined mass Dice |",
+        "|------:|-----------:|--------------------:|----------------:|-------------------:|",
+    ])
     for label, m, s in snapshots:
         md_lines.append(
             f"| {label} | {fmt(m['liver'], s['liver'])} | "
@@ -250,10 +270,17 @@ def main():
             f"{fmt(m['benign'], s['benign'])} | "
             f"{fmt(m['combined_mass'], s['combined_mass'])} |"
         )
+    best_s = (f"`Best` epoch was {BEST_EPOCHS[('best', 42)]} for seed 42, "
+              f"{BEST_EPOCHS[('best', 43)]} for seed 43, and {BEST_EPOCHS[('best', 44)]} for seed 44.")
+    best_mass_s = (f"`Best mass` epoch was {BEST_EPOCHS[('best_mass', 42)]} for seed 42, "
+                   f"{BEST_EPOCHS[('best_mass', 43)]} for seed 43, and {BEST_EPOCHS[('best_mass', 44)]} for seed 44.")
     md_lines.extend([
         "",
         f"Final malignant Dice: {tail_metric[-1]:.4f}. Tail-{tail_n}-epoch slope: "
         f"{slope:+.5f}/epoch.",
+        "",
+        best_s,
+        best_mass_s,
         "",
     ])
     md_path = os.path.join(OUT_DIR, "epoch_convergence_by_segmentation.md")
