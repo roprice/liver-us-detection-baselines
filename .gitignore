@@ -5,11 +5,17 @@
 __pycache__/
 *.pyc
 
+# nnU-Net stuff
 nnUNet_results
 nnUNet_raw
 nnUNet_preprocessed
 
-SMC-LUD
+# raw data
+data
 
 # organized predictions
 predictions
+
+# compressed files
+*.zip
+*.tar

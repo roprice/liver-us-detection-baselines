@@ -1,8 +1,8 @@
 # Prediction-only: manually run preliminary milestones validation
 
-This document lets you reproduce the validation-side predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
+This document lets you reproduce the held out validation-side predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
 
-The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting these checkpoints on the held-out surface provides additional epoch-convergence insight.
+The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting with these checkpoints on the held-out cases may provide additional epoch-convergence insight.
 
 Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
 
@@ -20,16 +20,12 @@ Because your environment may deviate in unpredictable ways, run these commands s
 
 ## Prerequisites
 
-This runbook reuses a server where the setup-and-training runbook has already completed. The following must be in place before you start:
-
-- Completed training from `training/run_preliminary_milestones_test.sh`.
-- `splits_final.json` in `$nnUNet_preprocessed/Dataset001_AUL/`.
-- The `checkpoint_epoch150.pth`, `checkpoint_epoch300.pth`, and `checkpoint_epoch750.pth` files for each seed present in `$nnUNet_results/Dataset001_AUL/`.
 - The nnU-Net environment variables set (see "Configure nnU-Net directories" below).
+- The `ZENODO_RECORD` URL in the script points at the published snapshot (placeholder `https://zenodo.org/records/9999999/files`).
 
 ## Server setup
 
-All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu, or on any instance where the prerequisites above already hold.
+All commands run on Verda.com's RTX 6000 Ada.
 
 ### 1. Configure prompt (optional)
 
@@ -189,6 +185,6 @@ tar xzf /tmp/preliminary_milestones_val.tar.gz
 
 The complete study snapshot — including `nnUNet_raw/`, `nnUNet_preprocessed/`, `nnUNet_results/`, and all logs — is archived on Zenodo. Cite the versioned record for reproducibility:
 
-> [https://doi.org/10.5281/zenodo.XXXXXXXXX](https://doi.org/10.5281/zenodo.XXXXXXXXX)
+> [https://doi.org/10.5281/zenodo.9999999](https://doi.org/10.5281/zenodo.9999999)
 
 Record the repo git SHA (printed by the runner's environment block) in the Zenodo description so the code and data stay linked.

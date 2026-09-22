@@ -73,6 +73,40 @@ cleanup_gpu_monitor() {
 trap cleanup_gpu_monitor EXIT
 
 # =====================================================================
+# Restore prerequisites from Zenodo
+# =====================================================================
+# The trained checkpoints, the fold split, and the training images are not
+# tracked in git. They are downloaded from the published Zenodo record so
+# the run can execute on a fresh instance without re-training or a slow
+# home upload. Replace ZENODO_RECORD with the published versioned record.
+ZENODO_RECORD="https://zenodo.org/records/9999999/files"
+
+mkdir -p "${nnUNet_raw}/${DATASET_NAME}" \
+         "${nnUNet_preprocessed}/${DATASET_NAME}" \
+         "${nnUNet_results}"
+
+echo "--- Restoring prerequisites from Zenodo ---"
+
+# Trained checkpoints + model folders (plans.json, dataset.json).
+# Expected layout inside the archive:
+#   Dataset001_AUL/nnUNetTrainerMilestones_seed{42,43,44}__nnUNetPlans__2d/fold_0/
+curl -fL -o /tmp/nnUNet_results.tar.gz \
+    "${ZENODO_RECORD}/nnUNet_results.tar.gz?download=1"
+tar xzf /tmp/nnUNet_results.tar.gz -C "${nnUNet_results}"
+
+# Fold split
+curl -fL -o "${nnUNet_preprocessed}/${DATASET_NAME}/splits_final.json" \
+    "${ZENODO_RECORD}/splits_final.json?download=1"
+
+# Training images (for the validation symlinks)
+curl -fL -o /tmp/imagesTr.tar.gz \
+    "${ZENODO_RECORD}/imagesTr.tar.gz?download=1"
+tar xzf /tmp/imagesTr.tar.gz -C "${nnUNet_raw}/${DATASET_NAME}/"
+
+echo "--- Prerequisites restored ---"
+echo ""
+
+# =====================================================================
 # Build validation image directory from the fold-0 split
 # =====================================================================
 SPLITS_FILE="${nnUNet_preprocessed}/${DATASET_NAME}/splits_final.json"
@@ -273,4 +307,4 @@ echo "  selection. The 150/300/750 milestone checkpoints were not selected"
 echo "  based on val performance, so val is an unbiased surface"
 echo "  for comparing them."
 echo ""
-echo "  Archived to Zenodo: 10.5281/zenodo.XXXXXXXXX"
+echo "  Archived to Zenodo: 10.5281/zenodo.9999999"
