@@ -1,18 +1,46 @@
 ## Study log
 
+Top-down chronologically, new entries first. First logged on Github 2026-09-21; prior logs reconstructed. Version history here: https://github.com/roprice/liver-us-detection-baselines/commits/main/STUDY_LOG.md
+
+
 ## 2026-09-22 
 
 
+#### Afternoon
+
+As planned, I ran analysis on the vals and the results remain more or less the same - the epoch 150 checkpoint wins on the criteria set yesterday in this log ("_I’ll choose the smallest epoch budget within 0.02 (accross seeds) of the winning epoch budget_") as its performance was 0.016 less than that of epoch 750.
+
+| Epoch | Seed 42 | Seed 43 | Seed 44 | Mean ± SD |
+|------:|--------:|--------:|--------:|----------:|
+| 150 | 139/143 | 138/143 | 133/143 | 0.956 ± 0.022 |
+| 300 | 141/143 | 134/143 | 138/143 | 0.963 ± 0.025 |
+| 750 | 141/143 | 138/143 | 138/143 | 0.972 ± 0.012 |
 
 
+I also pulled the actual learning rates for each checkpoint:
 
+| Checkpoint | LR |
+|------------|----|
+| 150        | 0.008648  |
+| 300        | 0.007264  |
+| 750        | 0.002882  |
+
+Which is interesting, given that milestone checkpoints share a 1000-epoch LR schedule - so **earlier snapshots trained at higher learning rates than a dedicated run at that budget would use, making the study's comparison parameters quite conservative.**
+
+In retrospect, I should have noted the LR discrepancies before conducting the experiment of adding additional data. Perhaps I should also should have noted the pooling technique and made an accommodation for standard deviation.
+
+All of the prediction analysis for the vals experiment has been published on Github.
+
+This brings convergence testing pilot to a close. 
+
+Next I'll be preparing for the main part of the study where I evaluate the performance of models across differently sized datasets and record training metrics.
 
 #### Morning
 After running predictions on the internal validation set, I updated the predictions dataset schema to accomodate not just experiment name but type of prediction data, as validation fold cases are different from typical held out test data.
 
 I also introduced a constants.py file to store the noise floor threshold of 0.0003. 
 
-I had determined that threshold based on a prior analysis of ground truth mass area distributions, which are quite variable in the AUL and SMC-LUD datasets; thus the decision to use relative noise floor. When I ran a sweep of relative noise floor against various detection views, I found that 0.0003 was the largest noise floor that didn't cause any predictions to be lost. Today, I decided to expand that sweep to all 7 detection metrics used in the study. The outcome was the same: 0.0003 is the largest noise floor that doesn't cause any predictions to be lost. For the AUL dataset's mean mass size, 0.003 equates to 102px. 
+I had determined that threshold based on a prior analysis of ground truth mass area distributions, which are quite variable in the AUL and SMC-LUD datasets; thus the decision to use relative noise floor. When I ran a sweep of relative noise floor against various detection views, I found that **0.0003 was the largest noise floor that didn't cause any predictions to be lost**. Today, I decided to expand that sweep to all 7 detection metrics used in the study. The outcome was the same: 0.0003 is the largest noise floor that doesn't cause any predictions to be lost. For the AUL dataset's mean mass size, 0.003 equates to 102px. 
 
 
 
@@ -82,7 +110,3 @@ I will evaluate a broad range of detection metrics with a eye to triage-level fl
 For the reasons above, the deep learning network must be open source, relatively simple, and segmentation based. The imaging modality must be ultrasound, as it is by far the lowest-cost and most broadly abvailable. Low quality, B-mode ultrasound, loosely corresponding to cheaper and more portable handheld "POCUS" ultrasound devices is actually preferred over high quality ulstrasound.
 
 Based on those premises, I will conduct the study on U-Net, specifically PlainConvUNet 2D, using nnU-Net to automate the pipeline as much as possible in the interest of efficiency and standardization of baselines. I will use the Annotated Liver Ultrasound (AUL) images dataset as the training corpus.
-
-
-
-`First logged on Github 2026-09-21, prior logs reconstructed.`
