@@ -46,7 +46,9 @@
       ">30,000 px\u00b2": 3
     }
   },
-  "dataset_snapshot_id": "be770da389cc",
+  "dataset_snapshot_id": "0781cd71cc6b",
+  "experiment_name": "milestones_pilot",
+  "evaluation_split": "test",
   "seeds": [
     42,
     43,

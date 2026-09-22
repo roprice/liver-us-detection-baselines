@@ -3,7 +3,9 @@
   "description": "Three preliminary milestones test runs: seeds 42/43/44, 625 images each, detection = IoU > 0.2, noise floor 0.03% of image area. Values are mean \u00b1 std across seeds.",
   "noise_floor": "0.03% of image area",
   "detection_definition": "IoU > 0.2",
-  "dataset_snapshot_id": "be770da389cc",
+  "dataset_snapshot_id": "0781cd71cc6b",
+  "experiment_name": "milestones_pilot",
+  "evaluation_split": "test",
   "seeds": [
     42,
     43,
