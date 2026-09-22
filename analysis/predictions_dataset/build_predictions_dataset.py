@@ -11,7 +11,7 @@ detection, and triage, for every evaluated prediction run. It intentionally
 contains no aggregate statistics, confidence intervals, quartiles, or
 interpretation; those live in downstream analyses.
 
-This builder discovers prediction directories under ``predictions/`` so that new
+This builder discovers prediction directories under ``nnUNet_results/`` so that new
 runs (including future seeds and encoders) are picked up without editing this
 file. Each prediction directory contributes one row per test image.
 """
@@ -30,7 +30,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 DATASET_DIR = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL"
 LABELS_TS = DATASET_DIR / "labelsTs"
 CASE_MAPPING = DATASET_DIR / "case_mapping.json"
-PREDICTIONS_ROOT = PROJECT_ROOT / "predictions"
+PREDICTIONS_ROOT = PROJECT_ROOT / "nnUNet_results"
 OUTPUT_PATH = SCRIPT_DIR / "predictions_dataset.csv"
 
 MASS_VALUE = 2
@@ -292,7 +292,7 @@ def parse_prediction_directory(directory_name):
 
 
 def discover_configurations():
-    """Discover every prediction directory under predictions/, recursively."""
+    """Discover every prediction directory under nnUNet_results/, recursively."""
     configurations = []
     if not PREDICTIONS_ROOT.is_dir():
         raise InputValidationError(
