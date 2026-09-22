@@ -1,0 +1,98 @@
+{
+  "title": "Case-level triage-based detection by saved milestone epoch on fold-0 validation data",
+  "description": "Three preliminary milestones validation runs: seeds 42/43/44, 125 fold-0 validation images each, triage = any retained mass (no overlap required), noise floor 0.03% of image area. Values are mean \u00b1 std across seeds.",
+  "noise_floor": "0.03% of image area",
+  "triage_definition": "any retained mass (no overlap required)",
+  "dataset_snapshot_id": "0781cd71cc6b",
+  "experiment_name": "milestones_pilot_vals",
+  "evaluation_split": "validation_fold_0",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "images": 125,
+  "epochs": [
+    150,
+    300,
+    750
+  ],
+  "combined": {
+    "Detection": {
+      "mean": [
+        0.8847352024922118,
+        0.9065420560747662,
+        0.9221183800623053
+      ],
+      "std": [
+        0.03890964484983426,
+        0.04282781023323215,
+        0.023519733443211063
+      ]
+    },
+    "False positive rate": {
+      "mean": [
+        0.20370370370370372,
+        0.0925925925925926,
+        0.05555555555555555
+      ],
+      "std": [
+        0.13981174880131017,
+        0.032075014954979206,
+        0.0
+      ]
+    }
+  },
+  "malignant": {
+    "Detection": {
+      "mean": [
+        0.952991452991453,
+        0.9658119658119658,
+        0.9743589743589745
+      ],
+      "std": [
+        0.014803853056144262,
+        0.019583656816050638,
+        0.012820512820512832
+      ]
+    },
+    "False positive rate": {
+      "mean": [
+        0.20370370370370372,
+        0.0925925925925926,
+        0.05555555555555555
+      ],
+      "std": [
+        0.13981174880131017,
+        0.032075014954979206,
+        0.0
+      ]
+    }
+  },
+  "benign": {
+    "Detection": {
+      "mean": [
+        0.7011494252873564,
+        0.7471264367816092,
+        0.7816091954022988
+      ],
+      "std": [
+        0.1053465677001343,
+        0.11084656047118338,
+        0.0796345198882242
+      ]
+    },
+    "False positive rate": {
+      "mean": [
+        0.20370370370370372,
+        0.0925925925925926,
+        0.05555555555555555
+      ],
+      "std": [
+        0.13981174880131017,
+        0.032075014954979206,
+        0.0
+      ]
+    }
+  }
+}

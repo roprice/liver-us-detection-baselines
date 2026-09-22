@@ -1,0 +1,104 @@
+{
+  "title": "Pooled malignant triage detection by saved milestone epoch",
+  "description": "Malignant triage recall pooled within each seed across the milestones pilot test and fold-0 validation cohorts. Values are mean \u00b1 sample standard deviation across seeds; noise floor 0.03% of image area.",
+  "dataset_snapshot_id": "0781cd71cc6b",
+  "cohorts": [
+    {
+      "experiment_name": "milestones_pilot",
+      "evaluation_split": "test"
+    },
+    {
+      "experiment_name": "milestones_pilot_vals",
+      "evaluation_split": "validation_fold_0"
+    }
+  ],
+  "triage_definition": "any retained mass (no overlap required)",
+  "noise_floor": "0.03% of image area",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "epochs": [
+    150,
+    300,
+    750
+  ],
+  "results": [
+    {
+      "epoch": 150,
+      "per_seed": [
+        {
+          "seed": 42,
+          "detected": 139,
+          "total": 143,
+          "recall": 0.972027972027972
+        },
+        {
+          "seed": 43,
+          "detected": 138,
+          "total": 143,
+          "recall": 0.965034965034965
+        },
+        {
+          "seed": 44,
+          "detected": 133,
+          "total": 143,
+          "recall": 0.9300699300699301
+        }
+      ],
+      "mean": 0.9557109557109557,
+      "std": 0.022479372403246933
+    },
+    {
+      "epoch": 300,
+      "per_seed": [
+        {
+          "seed": 42,
+          "detected": 141,
+          "total": 143,
+          "recall": 0.986013986013986
+        },
+        {
+          "seed": 43,
+          "detected": 134,
+          "total": 143,
+          "recall": 0.9370629370629371
+        },
+        {
+          "seed": 44,
+          "detected": 138,
+          "total": 143,
+          "recall": 0.965034965034965
+        }
+      ],
+      "mean": 0.9627039627039627,
+      "std": 0.024558633456533193
+    },
+    {
+      "epoch": 750,
+      "per_seed": [
+        {
+          "seed": 42,
+          "detected": 141,
+          "total": 143,
+          "recall": 0.986013986013986
+        },
+        {
+          "seed": 43,
+          "detected": 138,
+          "total": 143,
+          "recall": 0.965034965034965
+        },
+        {
+          "seed": 44,
+          "detected": 138,
+          "total": 143,
+          "recall": 0.965034965034965
+        }
+      ],
+      "mean": 0.972027972027972,
+      "std": 0.012112243409572607
+    }
+  ]
+}
