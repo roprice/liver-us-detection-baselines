@@ -34,6 +34,8 @@ CSV_PATH = SCRIPT_DIR / "predictions_dataset.csv"
 # Field name -> whether it is a string (left as-is). Everything else is coerced
 # per the schema below rather than inferred from the CSV.
 STRING_FIELDS = {
+    "experiment_name",
+    "evaluation_split",
     "configuration_id",
     "prediction_path",
     "reference_path",
@@ -92,6 +94,8 @@ NULLABLE_FIELDS = {
 # Expected column order is authoritative; a deviation means the CSV was rebuilt
 # with a different schema and should fail loudly.
 EXPECTED_FIELDS = (
+    "experiment_name",
+    "evaluation_split",
     "configuration_id",
     "seed",
     "epoch",
@@ -137,6 +141,8 @@ class DatasetValidationError(RuntimeError):
 class PredictionRow:
     """One image-level fact row, with every field type pinned."""
 
+    experiment_name: str
+    evaluation_split: str
     configuration_id: str
     seed: int
     epoch: Optional[int]

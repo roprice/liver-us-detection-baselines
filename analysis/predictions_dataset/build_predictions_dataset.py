@@ -29,7 +29,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 DATASET_DIR = PROJECT_ROOT / "nnUNet_raw/Dataset001_AUL"
 LABELS_TS = DATASET_DIR / "labelsTs"
+LABELS_TR = DATASET_DIR / "labelsTr"
 CASE_MAPPING = DATASET_DIR / "case_mapping.json"
+SPLITS_FINAL = PROJECT_ROOT / "nnUNet_preprocessed/Dataset001_AUL/splits_final.json"
 PREDICTIONS_ROOT = PROJECT_ROOT / "nnUNet_results"
 OUTPUT_PATH = SCRIPT_DIR / "predictions_dataset.csv"
 
@@ -69,6 +71,8 @@ BEST_EPOCHS = {
 }
 
 FIELDNAMES = (
+    "experiment_name",
+    "evaluation_split",
     "configuration_id",
     "seed",
     "epoch",
@@ -197,28 +201,35 @@ def centroid_detection(reference, retained_prediction, diameter_factor):
     return False
 
 
-def load_test_cases():
-    """Load test references and the split/pathology mapping."""
-    if not LABELS_TS.is_dir():
-        raise InputValidationError(f"Missing reference directory: {relative_path(LABELS_TS)}")
+def load_cases(case_ids, label_directory, cohort_name, require_exact_label_coverage):
+    """Load references and metadata for one explicitly defined evaluation cohort."""
+    if not label_directory.is_dir():
+        raise InputValidationError(
+            f"Missing reference directory: {relative_path(label_directory)}"
+        )
     if not CASE_MAPPING.is_file():
-        raise InputValidationError(f"Missing split manifest: {relative_path(CASE_MAPPING)}")
+        raise InputValidationError(f"Missing case manifest: {relative_path(CASE_MAPPING)}")
 
     with open(CASE_MAPPING) as file:
         mapping = json.load(file)
 
-    test_entries = [entry for entry in mapping if entry.get("split") == "test"]
-    by_case_id = {entry["case_name"]: entry for entry in test_entries}
-    if len(by_case_id) != len(test_entries):
-        raise InputValidationError("Duplicate test case IDs in case_mapping.json")
+    by_case_id = {entry["case_name"]: entry for entry in mapping}
+    if len(by_case_id) != len(mapping):
+        raise InputValidationError("Duplicate case IDs in case_mapping.json")
 
-    label_case_ids = {path.stem for path in LABELS_TS.glob("*.png")}
-    manifest_case_ids = set(by_case_id)
+    manifest_case_ids = set(case_ids)
+    unknown_case_ids = sorted(manifest_case_ids - set(by_case_id))
+    if unknown_case_ids:
+        raise InputValidationError(
+            f"Unknown {cohort_name} case IDs in split manifest: {unknown_case_ids}"
+        )
+
+    label_case_ids = {path.stem for path in label_directory.glob("*.png")}
     missing_labels = sorted(manifest_case_ids - label_case_ids)
     unmapped_labels = sorted(label_case_ids - manifest_case_ids)
-    if missing_labels or unmapped_labels:
+    if missing_labels or (require_exact_label_coverage and unmapped_labels):
         raise InputValidationError(
-            "Test manifest/reference mismatch: "
+            f"{cohort_name} manifest/reference mismatch: "
             f"missing labels={missing_labels}, unmapped labels={unmapped_labels}"
         )
 
@@ -232,7 +243,7 @@ def load_test_cases():
         if "original_file" not in entry:
             raise InputValidationError(f"Missing original_file for {case_id}")
 
-        reference_path = LABELS_TS / f"{case_id}.png"
+        reference_path = label_directory / f"{case_id}.png"
         reference = read_mask(reference_path)
         ground_truth_mass = reference == MASS_VALUE
         ground_truth_liver = reference >= 1
@@ -257,16 +268,46 @@ def load_test_cases():
     return cases
 
 
-def parse_prediction_directory(directory_name):
-    """Return (seed, epoch, checkpoint, encoder) for a prediction directory.
+def load_test_cases():
+    """Load the held-out test cohort and require exact label coverage."""
+    with open(CASE_MAPPING) as file:
+        mapping = json.load(file)
+    return load_cases(
+        (entry["case_name"] for entry in mapping if entry.get("split") == "test"),
+        LABELS_TS,
+        "test",
+        require_exact_label_coverage=True,
+    )
 
-    Mirrors the preliminary milestones naming scheme
-    ``predictions_milestones_625images_seed{SEED}_{checkpoint}``. Returned
-    ``epoch`` is None for the dynamically selected ``best``/``best_mass``
-    checkpoints. Unknown directory names raise so coverage stays explicit.
-    """
+
+def load_validation_fold_0_cases():
+    """Load fold-0 validation cases from the training labels."""
+    if not SPLITS_FINAL.is_file():
+        raise InputValidationError(
+            f"Missing nnU-Net split manifest: {relative_path(SPLITS_FINAL)}"
+        )
+    with open(SPLITS_FINAL) as file:
+        splits = json.load(file)
+    if not splits or "val" not in splits[0]:
+        raise InputValidationError("splits_final.json has no fold-0 validation split")
+    return load_cases(
+        splits[0]["val"],
+        LABELS_TR,
+        "validation fold 0",
+        require_exact_label_coverage=False,
+    )
+
+
+def parse_prediction_directory(directory_name):
+    """Return metadata parsed from an approved prediction-directory convention."""
     parts = directory_name.split("_")
-    if not directory_name.startswith("predictions_milestones_625images_seed"):
+    if directory_name.startswith("predictions_milestones_625images_seed"):
+        experiment_name = "milestones_pilot"
+        evaluation_split = "test"
+    elif directory_name.startswith("predictions_milestones_val_625images_seed"):
+        experiment_name = "milestones_pilot_vals"
+        evaluation_split = "validation_fold_0"
+    else:
         raise InputValidationError(
             f"Unrecognized prediction directory name: {directory_name}"
         )
@@ -288,7 +329,7 @@ def parse_prediction_directory(directory_name):
         epoch = BEST_EPOCHS[(checkpoint, seed)]
     else:
         epoch = CHECKPOINT_EPOCHS[checkpoint]
-    return seed, epoch, checkpoint, "PlainConvUNet"
+    return experiment_name, evaluation_split, seed, epoch, checkpoint, "PlainConvUNet"
 
 
 def discover_configurations():
@@ -301,8 +342,12 @@ def discover_configurations():
     for directory in sorted(PREDICTIONS_ROOT.rglob("predictions_milestones_*")):
         if not directory.is_dir():
             continue
-        seed, epoch, checkpoint, encoder = parse_prediction_directory(directory.name)
+        experiment_name, evaluation_split, seed, epoch, checkpoint, encoder = (
+            parse_prediction_directory(directory.name)
+        )
         configurations.append({
+            "experiment_name": experiment_name,
+            "evaluation_split": evaluation_split,
             "configuration_id": directory.name,
             "seed": seed,
             "epoch": epoch,
@@ -397,6 +442,8 @@ def evaluate_case(config, case):
         normal_false_positive = triage
 
     return {
+        "experiment_name": config["experiment_name"],
+        "evaluation_split": config["evaluation_split"],
         "configuration_id": config["configuration_id"],
         "seed": config["seed"],
         "epoch": config["epoch"],
@@ -447,8 +494,14 @@ def write_rows(rows):
 
 
 def main():
-    cases = load_test_cases()
-    expected_filenames = {f"{case['image_id']}.png" for case in cases}
+    cases_by_evaluation_split = {
+        "test": load_test_cases(),
+        "validation_fold_0": load_validation_fold_0_cases(),
+    }
+    expected_filenames_by_evaluation_split = {
+        evaluation_split: {f"{case['image_id']}.png" for case in cases}
+        for evaluation_split, cases in cases_by_evaluation_split.items()
+    }
     configurations = discover_configurations()
 
     configuration_ids = [config["configuration_id"] for config in configurations]
@@ -458,8 +511,14 @@ def main():
     rows = []
     for config in configurations:
         print(f"Evaluating {config['configuration_id']}...")
-        validate_configuration(config, expected_filenames)
-        rows.extend(evaluate_case(config, case) for case in cases)
+        evaluation_split = config["evaluation_split"]
+        validate_configuration(
+            config, expected_filenames_by_evaluation_split[evaluation_split]
+        )
+        rows.extend(
+            evaluate_case(config, case)
+            for case in cases_by_evaluation_split[evaluation_split]
+        )
 
     write_rows(rows)
     print(f"Wrote {relative_path(OUTPUT_PATH)} ({len(rows)} rows)")
