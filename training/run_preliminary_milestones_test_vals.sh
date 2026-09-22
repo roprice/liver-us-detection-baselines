@@ -1,17 +1,19 @@
 #!/bin/bash
 set -e
 
-# Predict milestone checkpoints on the fold-0 validation images.
+# Predict the 150/300/750 milestone checkpoints on the fold-0 validation
+# images.
 #
 # This confirms the epoch-convergence plateau observed on the test set
 # using an independent evaluation surface. The validation images were
 # held out from gradient updates during training (nnU-Net uses them
 # only for pseudo-Dice logging and best-checkpoint selection).
 #
-# Excluded checkpoints:
-#   - checkpoint_best.pth: selected on val pseudo-Dice, so it would
-#     appear artificially optimistic on this same image set.
-#   - checkpoint_best_mass.pth: same selection mechanism (EMA mass Dice).
+# Only the 150, 300, and 750 epoch checkpoints are predicted. The
+# remaining milestones (50, 100, 500, final) are left unpredicted unless
+# this sweep reveals something worth investigating. checkpoint_best and
+# checkpoint_best_mass are excluded because they were selected on val
+# pseudo-Dice and would be biased on this same image set.
 #
 # Prerequisites:
 #   - Completed training from run_preliminary_milestones_test.sh
@@ -19,7 +21,7 @@ set -e
 #   - All milestone .pth files present in nnUNet_results
 #
 # Usage:
-#   bash training/run_preliminary_milestones_val.sh 2>&1 | tee preliminary_milestones_val.log
+#   bash training/run_preliminary_milestones_test_vals.sh 2>&1 | tee preliminary_milestones_val.log
 
 START_TIME=$(date +%s)
 
@@ -38,31 +40,23 @@ DATASET_NAME="Dataset001_AUL"
 SEEDS=(42 43 44)
 FOLD=0
 
-# Milestone checkpoints only. Best and best_mass are excluded because
-# they were selected using val-set pseudo-Dice and would be biased.
+# Predict only the 150/300/750 milestone checkpoints (per the study log).
+# Best and best_mass are excluded because they were selected using
+# val-set pseudo-Dice and would be biased.
 CHECKPOINT_ORDER=(
-    checkpoint_epoch50.pth
-    checkpoint_epoch100.pth
     checkpoint_epoch150.pth
     checkpoint_epoch300.pth
-    checkpoint_epoch500.pth
     checkpoint_epoch750.pth
-    checkpoint_final.pth
 )
 declare -A CHECKPOINT_LABELS
-CHECKPOINT_LABELS[checkpoint_epoch50.pth]=epoch50
-CHECKPOINT_LABELS[checkpoint_epoch100.pth]=epoch100
 CHECKPOINT_LABELS[checkpoint_epoch150.pth]=epoch150
 CHECKPOINT_LABELS[checkpoint_epoch300.pth]=epoch300
-CHECKPOINT_LABELS[checkpoint_epoch500.pth]=epoch500
 CHECKPOINT_LABELS[checkpoint_epoch750.pth]=epoch750
-CHECKPOINT_LABELS[checkpoint_final.pth]=final
 
 # --- Log directories ---
 LOGS_DIR="${REPO_DIR}/experiment_logs/${EXPERIMENT_NAME}/logs"
 VAL_PRED_LOGS="${LOGS_DIR}/val_predictions"
-BENCH_DIR="${LOGS_DIR}/inference"
-mkdir -p "$VAL_PRED_LOGS" "$BENCH_DIR"
+mkdir -p "$VAL_PRED_LOGS"
 
 PRED_TIMES_CSV="${VAL_PRED_LOGS}/val_prediction_times.csv"
 echo "size,seed,checkpoint,wall_clock_seconds,case_count" > "$PRED_TIMES_CSV"
@@ -200,27 +194,6 @@ for SEED in "${SEEDS[@]}"; do
     ls -lh "${CKPT_DIR}"/*.pth 2>/dev/null || echo "WARNING: no checkpoint files found"
     echo ""
 
-    # --- Model footprint ---
-    echo "--- Model footprint (seed ${SEED}) ---"
-    python -c "
-import torch, os, sys
-ckpt_dir = sys.argv[1]
-final = os.path.join(ckpt_dir, 'checkpoint_final.pth')
-if not os.path.exists(final):
-    print('WARNING: checkpoint_final.pth not found', file=sys.stderr)
-    sys.exit(0)
-ckpt = torch.load(final, weights_only=False, map_location='cpu')
-weights = ckpt.get('network_weights', {})
-num_params = sum(v.numel() for v in weights.values())
-print(f'Parameters: {num_params:,}')
-print(f'Checkpoint file size: {os.path.getsize(final):,} bytes')
-tmp = '/tmp/weights_only.pth'
-torch.save(weights, tmp)
-print(f'Weights-only file size: {os.path.getsize(tmp):,} bytes')
-os.remove(tmp)
-" "$CKPT_DIR" || echo "WARNING: could not compute model footprint"
-    echo ""
-
     for CHK in "${CHECKPOINT_ORDER[@]}"; do
         LBL="${CHECKPOINT_LABELS[$CHK]}"
 
@@ -259,30 +232,6 @@ os.remove(tmp)
 done
 
 # =====================================================================
-# GPU inference benchmark (per-image latency on the val split)
-# =====================================================================
-echo ""
-echo "========================================"
-echo "=== GPU inference benchmark (val) ==="
-echo "========================================"
-
-/usr/bin/time -v -o "${LOGS_DIR}/time_gpu_inference_benchmark_val.txt" \
-    python "${SCRIPT_DIR}/benchmark_gpu_inference.py" \
-        --nnunet-raw "${nnUNet_raw}" \
-        --dataset-name "${DATASET_NAME}" \
-        --dataset-id "${DATASET_ID}" \
-        --images-dir "${VAL_INPUT_DIR}" \
-        --seeds "${SEEDS[@]}" \
-        --trainer-prefix nnUNetTrainerMilestones_seed \
-        --checkpoint checkpoint_final.pth \
-        --device cuda \
-        --output-dir "$BENCH_DIR"
-
-echo "GPU inference benchmark complete. Results in ${BENCH_DIR}/"
-echo "To repeat on CPU later: same command with --device cpu (see"
-echo "  ${BENCH_DIR}/inference_settings_cuda.json for exact settings)."
-
-# =====================================================================
 # Summary
 # =====================================================================
 END_TIME=$(date +%s)
@@ -309,23 +258,19 @@ for S in "${SEEDS[@]}"; do
     echo "    gpu_monitor_val_s${S}.csv         GPU utilization/memory/power/temp samples (~1/s)"
 done
 echo ""
-echo "  GPU inference benchmark (${BENCH_DIR}):"
-echo "    inference_per_image_cuda.csv       per-image inference seconds, one row per case x seed"
-echo "    inference_summary_cuda.csv         per-seed model load time, median/mean/stdev/IQR/range"
-echo "    inference_settings_cuda.json       exact settings to replicate on CPU later"
-echo "    ${LOGS_DIR}/time_gpu_inference_benchmark_val.txt   /usr/bin/time: peak RSS, CPU time for the benchmark script"
-echo ""
 echo "  Temp val image directory (symlinks, safe to delete):"
 echo "    ${VAL_INPUT_DIR}"
 echo ""
 echo "=== Notes ==="
 echo "  checkpoint_best and checkpoint_best_mass are excluded because they"
 echo "  were selected using val-set pseudo-Dice during training."
-echo "  7 checkpoints × 3 seeds = 21 prediction directories."
+echo "  3 checkpoints × 3 seeds = 9 prediction directories."
 echo ""
 echo "  Val images are the fold-${FOLD} validation split from splits_final.json."
 echo "  These images were held out from gradient updates during training."
 echo "  nnU-Net used them only for pseudo-Dice monitoring and best-checkpoint"
-echo "  selection. The milestone checkpoints (50-750) and final were not"
-echo "  selected based on val performance, so val is an unbiased surface"
+echo "  selection. The 150/300/750 milestone checkpoints were not selected"
+echo "  based on val performance, so val is an unbiased surface"
 echo "  for comparing them."
+echo ""
+echo "  Archived to Zenodo: 10.5281/zenodo.XXXXXXXXX"

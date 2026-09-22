@@ -1,8 +1,8 @@
 # Prediction-only: manually run preliminary milestones validation
 
-This document lets you reproduce the validation-side predictions for the preliminary milestones experiment. Unlike the setup-and-training runbook, this script only predicts — it assumes training has already completed.
+This document lets you reproduce the validation-side predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
 
-The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting the milestone checkpoints on this independent surface confirms the epoch-convergence plateau observed on the test set.
+The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting these checkpoints on the held-out surface provides additional epoch-convergence insight.
 
 Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
 
@@ -18,15 +18,13 @@ Because your environment may deviate in unpredictable ways, run these commands s
 | Trainer | `nnUNetTrainerMilestones_seed{42,43,44}` |
 | Architecture | PlainConvUNet 2D |
 
-Each seed predicts seven milestone checkpoints (epochs 50, 100, 150, 300, 500, 750, and final) on the validation split. `checkpoint_best` and `checkpoint_best_mass` are excluded because they were selected on validation pseudo-Dice and would look artificially optimistic on this same image set.
-
 ## Prerequisites
 
 This runbook reuses a server where the setup-and-training runbook has already completed. The following must be in place before you start:
 
 - Completed training from `training/run_preliminary_milestones_test.sh`.
 - `splits_final.json` in `$nnUNet_preprocessed/Dataset001_AUL/`.
-- All milestone `.pth` files present in `$nnUNet_results/Dataset001_AUL/`.
+- The `checkpoint_epoch150.pth`, `checkpoint_epoch300.pth`, and `checkpoint_epoch750.pth` files for each seed present in `$nnUNet_results/Dataset001_AUL/`.
 - The nnU-Net environment variables set (see "Configure nnU-Net directories" below).
 
 ## Server setup
@@ -113,7 +111,7 @@ done
 
 ### 8. Run the validation predictions
 
-The script builds a temporary directory of validation images (symlinks into `tmp/val_images_fold0/`), then predicts the seven milestone checkpoints for each seed.
+The script builds a temporary directory of validation images (symlinks into `tmp/val_images_fold0/`), then predicts the three milestone checkpoints (150, 300, and 750) for each seed.
 
 ```sh
 # Start a persistent session so predictions survive an SSH disconnect
@@ -141,17 +139,13 @@ The runner logs an environment block (host, GPU, CPU, RAM, PyTorch, nnU-Net vers
 
 | Checkpoint file | Prediction label |
 |---|---|
-| `checkpoint_epoch50.pth` | `epoch50` |
-| `checkpoint_epoch100.pth` | `epoch100` |
 | `checkpoint_epoch150.pth` | `epoch150` |
 | `checkpoint_epoch300.pth` | `epoch300` |
-| `checkpoint_epoch500.pth` | `epoch500` |
 | `checkpoint_epoch750.pth` | `epoch750` |
-| `checkpoint_final.pth` | `final` |
 
-`checkpoint_best` and `checkpoint_best_mass` are excluded because they were selected using val-set pseudo-Dice and would be biased on this same surface.
+`checkpoint_best` and `checkpoint_best_mass` are excluded because they were selected using val-set pseudo-Dice and would be biased on this same surface. The remaining milestones (50, 100, 500) and `final` are left unpredicted.
 
-Prediction directories use the naming `predictions_milestones_val_625images_seed{SEED}_{label}`, e.g. `predictions_milestones_val_625images_seed42_epoch500`, repeated for each seed (21 directories total).
+Prediction directories use the naming `predictions_milestones_val_625images_seed{SEED}_{label}`, e.g. `predictions_milestones_val_625images_seed42_epoch300`, repeated for each seed (9 directories total).
 
 ## Verification
 
@@ -164,10 +158,10 @@ tmux attach -t val
 tail -20 preliminary_milestones_val.log
 # Look for: "Validation predictions complete"
 
-# 21 prediction directories (7 checkpoints × 3 seeds)
+# 9 prediction directories (3 checkpoints × 3 seeds)
 for SEED in 42 43 44; do
   echo "Seed $SEED:"
-  ls -d "$nnUNet_results"/predictions_milestones_val_625images_seed${SEED}_* | wc -l  # expect 7
+  ls -d "$nnUNet_results"/predictions_milestones_val_625images_seed${SEED}_* | wc -l  # expect 3
 done
 ```
 
@@ -190,3 +184,11 @@ Then, on your local computer:
 scp root@<server-ip>:~/preliminary_milestones_val.tar.gz /tmp/
 tar xzf /tmp/preliminary_milestones_val.tar.gz
 ```
+
+## Archive to Zenodo
+
+The complete study snapshot — including `nnUNet_raw/`, `nnUNet_preprocessed/`, `nnUNet_results/`, and all logs — is archived on Zenodo. Cite the versioned record for reproducibility:
+
+> [https://doi.org/10.5281/zenodo.XXXXXXXXX](https://doi.org/10.5281/zenodo.XXXXXXXXX)
+
+Record the repo git SHA (printed by the runner's environment block) in the Zenodo description so the code and data stay linked.
