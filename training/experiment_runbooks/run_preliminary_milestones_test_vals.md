@@ -201,6 +201,7 @@ Download the evidence needed to reconstruct and audit the run.
 cd ~
 tar czf preliminary_milestones_val.tar.gz \
   liver-us-detection-baselines/experiment_logs/milestones_pilot_vals/ \
+  liver-us-detection-baselines/preliminary_milestones_val.log \
   nnUNet_results/predictions_milestones_val_625images_seed*_*/
 ```
 
