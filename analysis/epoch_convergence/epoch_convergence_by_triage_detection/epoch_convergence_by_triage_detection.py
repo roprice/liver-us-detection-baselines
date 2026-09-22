@@ -49,6 +49,8 @@ from analysis.predictions_dataset.load_predictions_dataset import (
 
 NOISE_FLOOR = "0.03% of image area"
 
+EXPERIMENT_NAME = "milestones_pilot"
+EVALUATION_SPLIT = "test"
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
@@ -143,20 +145,20 @@ def evaluate_epoch(rows, positive_class="malignant"):
     return crec, cfp_rate
 
 
-def summarize_snapshot(data, positive_class, suffix):
+def summarize_snapshot(rows, positive_class, suffix):
     """Return (per_seed_recall, recall_mean, recall_std, fp_mean, fp_std) for one
     snapshot checkpoint across seeds."""
     recalls = []
     fp_rates = []
     for seed in SEEDS:
         folder = f"predictions_milestones_625images_seed{seed}_{suffix}"
-        rows = [r for r in data.rows if r.configuration_id == folder]
-        if not rows:
+        configuration_rows = [r for r in rows if r.configuration_id == folder]
+        if not configuration_rows:
             print(f"WARNING: no rows for {folder}")
             recalls.append(float('nan'))
             fp_rates.append(float('nan'))
             continue
-        rec, fp = evaluate_epoch(rows, positive_class)
+        rec, fp = evaluate_epoch(configuration_rows, positive_class)
         recalls.append(rec)
         fp_rates.append(fp)
     recall_mean = float(np.nanmean(recalls)) if recalls else float('nan')
@@ -166,7 +168,7 @@ def summarize_snapshot(data, positive_class, suffix):
     return recalls, recall_mean, recall_std, fp_mean, fp_std
 
 
-def summarize_epochs(data, positive_class):
+def summarize_epochs(rows, positive_class):
     """Return {metric: (means, stds)} across seeds, per epoch."""
     means = {key: [] for key in METRICS}
     stds = {key: [] for key in METRICS}
@@ -175,11 +177,11 @@ def summarize_epochs(data, positive_class):
         fp_rates = []
         for seed in SEEDS:
             folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
-            rows = [r for r in data.rows if r.configuration_id == folder]
-            if not rows:
+            configuration_rows = [r for r in rows if r.configuration_id == folder]
+            if not configuration_rows:
                 print(f"WARNING: no rows for {folder}")
                 continue
-            rec, fp = evaluate_epoch(rows, positive_class)
+            rec, fp = evaluate_epoch(configuration_rows, positive_class)
             recalls.append(rec)
             fp_rates.append(fp)
         means["case_recall"].append(float(np.nanmean(recalls)) if recalls else float('nan'))
@@ -204,13 +206,20 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     data = load_predictions_dataset()
-    print(f"Loaded predictions dataset: {data.snapshot_id}, "
-          f"{len(data.rows)} rows")
+    rows = [
+        row for row in data.rows
+        if row.experiment_name == EXPERIMENT_NAME
+        and row.evaluation_split == EVALUATION_SPLIT
+    ]
+    print(
+        f"Loaded predictions dataset: {data.snapshot_id}, {len(rows)} rows "
+        f"for {EXPERIMENT_NAME}/{EVALUATION_SPLIT}"
+    )
 
     stats = {
-        "combined": summarize_epochs(data, "combined"),
-        "malignant": summarize_epochs(data, "malignant"),
-        "benign": summarize_epochs(data, "benign"),
+        "combined": summarize_epochs(rows, "combined"),
+        "malignant": summarize_epochs(rows, "malignant"),
+        "benign": summarize_epochs(rows, "benign"),
     }
 
     # Snapshot detection per grouping.
@@ -218,7 +227,7 @@ def main():
     for group in ("combined", "malignant", "benign"):
         entries = []
         for suffix, display in SNAPSHOTS:
-            recalls, rec_m, rec_s, fp_m, fp_s = summarize_snapshot(data, group, suffix)
+            recalls, rec_m, rec_s, fp_m, fp_s = summarize_snapshot(rows, group, suffix)
             entries.append({
                 "suffix": suffix,
                 "display": display,
@@ -256,6 +265,8 @@ def main():
         "noise_floor": NOISE_FLOOR,
         "triage_definition": "any retained mass (no overlap required)",
         "dataset_snapshot_id": data.snapshot_id,
+        "experiment_name": EXPERIMENT_NAME,
+        "evaluation_split": EVALUATION_SPLIT,
         "seeds": SEEDS,
         "images": 625,
         "epochs": epochs,

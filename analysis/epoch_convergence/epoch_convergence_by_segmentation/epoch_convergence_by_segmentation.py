@@ -44,6 +44,8 @@ from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
 
+EXPERIMENT_NAME = "milestones_pilot"
+EVALUATION_SPLIT = "test"
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
@@ -135,16 +137,16 @@ def evaluate_rows(rows):
     }
 
 
-def summarize_checkpoint(data, suffix):
+def summarize_checkpoint(rows, suffix):
     """Return (means, stds) dicts of Dice across seeds for one checkpoint."""
     per_seed = []
     for seed in SEEDS:
         config_id = f"predictions_milestones_625images_seed{seed}_{suffix}"
-        rows = [r for r in data.rows if r.configuration_id == config_id]
-        if not rows:
+        checkpoint_rows = [r for r in rows if r.configuration_id == config_id]
+        if not checkpoint_rows:
             print(f"WARNING: no rows for {config_id}")
             continue
-        per_seed.append(evaluate_rows(rows))
+        per_seed.append(evaluate_rows(checkpoint_rows))
 
     means = {}
     stds = {}
@@ -190,13 +192,18 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     data = load_predictions_dataset()
+    rows = [
+        row for row in data.rows
+        if row.experiment_name == EXPERIMENT_NAME
+        and row.evaluation_split == EVALUATION_SPLIT
+    ]
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
-          f"{len(data.rows)} rows")
+          f"{len(rows)} selected rows")
 
     dice_means = {key: [] for key in DICE_KEYS}
     dice_stds = {key: [] for key in DICE_KEYS}
     for epoch in EPOCHS:
-        means, stds = summarize_checkpoint(data, f"epoch{epoch}")
+        means, stds = summarize_checkpoint(rows, f"epoch{epoch}")
         for key in DICE_KEYS:
             dice_means[key].append(means[key])
             dice_stds[key].append(stds[key])
@@ -204,7 +211,7 @@ def main():
     # Snapshots reported as extra rows alongside the milestones.
     snapshots = []
     for folder_label, display_label in SNAPSHOT_DIRS:
-        means, stds = summarize_checkpoint(data, folder_label)
+        means, stds = summarize_checkpoint(rows, folder_label)
         if all(np.isnan(means[k]) for k in DICE_KEYS):
             print(f"WARNING: no rows for {folder_label}, skipping")
             continue

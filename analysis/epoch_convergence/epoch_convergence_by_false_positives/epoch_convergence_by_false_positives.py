@@ -38,6 +38,9 @@ from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
 
+EXPERIMENT_NAME = "milestones_pilot"
+EVALUATION_SPLIT = "test"
+
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
@@ -96,13 +99,13 @@ def count_false_positives(rows):
     return fp_count, len(normal)
 
 
-def summarize_checkpoint(data, suffix):
+def summarize_checkpoint(prediction_rows, suffix):
     """Return (seed_counts, fp_count_mean, fp_count_std, fp_rate_mean, fp_rate_std, n_normal)."""
     seed_counts = []
     n_normal = None
     for seed in SEEDS:
         config_id = f"predictions_milestones_625images_seed{seed}_{suffix}"
-        rows = [r for r in data.rows if r.configuration_id == config_id]
+        rows = [r for r in prediction_rows if r.configuration_id == config_id]
         if not rows:
             print(f"WARNING: no rows for {config_id}")
             continue
@@ -123,8 +126,13 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     data = load_predictions_dataset()
+    prediction_rows = [
+        row for row in data.rows
+        if row.experiment_name == EXPERIMENT_NAME
+        and row.evaluation_split == EVALUATION_SPLIT
+    ]
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
-          f"{len(data.rows)} rows")
+          f"{len(prediction_rows)} rows")
 
     epochs = []
     fp_count_means = []
@@ -139,7 +147,7 @@ def main():
         seed_counts = []
         for seed in SEEDS:
             folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
-            rows = [r for r in data.rows if r.configuration_id == folder]
+            rows = [r for r in prediction_rows if r.configuration_id == folder]
             if not rows:
                 print(f"WARNING: no rows for {folder}")
                 continue
@@ -165,7 +173,7 @@ def main():
     # Selected and final checkpoints reported as extra rows.
     snapshots = []
     for suffix, (epoch_label, display_name) in SNAPSHOT_DIRS.items():
-        seed_counts, count_m, count_s, rate_m, rate_s, _ = summarize_checkpoint(data, suffix)
+        seed_counts, count_m, count_s, rate_m, rate_s, _ = summarize_checkpoint(prediction_rows, suffix)
         if not seed_counts:
             print(f"WARNING: no rows for {suffix}, skipping")
             continue
@@ -195,6 +203,8 @@ def main():
         "images": 625,
         "normal_cases": n_normal,
         "dataset_snapshot_id": data.snapshot_id,
+        "experiment_name": EXPERIMENT_NAME,
+        "evaluation_split": EVALUATION_SPLIT,
         "best_epochs": {
             str(seed): BEST_EPOCHS[("best", seed)] for seed in SEEDS
         },

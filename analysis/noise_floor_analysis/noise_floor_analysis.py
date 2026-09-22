@@ -34,6 +34,8 @@ from analysis.predictions_dataset.load_predictions_dataset import (
 MASS_VALUE = 2
 CONNECTIVITY = 2
 FIXED_FLOOR = 100
+EXPERIMENT_NAME = "milestones_pilot"
+EVALUATION_SPLIT = "test"
 
 # Weighted mean image area (px) of the external AUL set, from its size counts.
 AUL_MEAN_AREA = 341420
@@ -111,8 +113,13 @@ def load_mass_masks(row):
 
 def main():
     data = load_predictions_dataset()
+    rows = [
+        r for r in data.rows
+        if r.experiment_name == EXPERIMENT_NAME
+        and r.evaluation_split == EVALUATION_SPLIT
+    ]
     # Only mass-present cases matter: detection is defined on positive masses.
-    rows = [r for r in data.rows if r.mass_present]
+    rows = [r for r in rows if r.mass_present]
     print(f"{len(rows)} mass-present rows")
 
     # Baseline detection under the fixed 100 px floor: reuse the CSV flags.

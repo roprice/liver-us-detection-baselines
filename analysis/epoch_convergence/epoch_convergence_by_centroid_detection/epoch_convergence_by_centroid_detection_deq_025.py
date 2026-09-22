@@ -50,6 +50,9 @@ DEQ_FACTOR = 0.25
 FLAG_FIELD = "centroid_detection_deq_025_flag"
 OUT_BASE = "epoch_convergence_by_centroid_detection_deq_025"
 
+EXPERIMENT_NAME = "milestones_pilot"
+EVALUATION_SPLIT = "test"
+
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
@@ -148,14 +151,14 @@ def evaluate_epoch(rows, positive_class="malignant"):
     return crec, cfp_rate
 
 
-def summarize_snapshot(data, positive_class, suffix):
+def summarize_snapshot(prediction_rows, positive_class, suffix):
     """Return (per_seed_recall, recall_mean, recall_std, fp_mean, fp_std) for one
     snapshot checkpoint across seeds."""
     recalls = []
     fp_rates = []
     for seed in SEEDS:
         folder = f"predictions_milestones_625images_seed{seed}_{suffix}"
-        rows = [r for r in data.rows if r.configuration_id == folder]
+        rows = [r for r in prediction_rows if r.configuration_id == folder]
         if not rows:
             print(f"WARNING: no rows for {folder}")
             recalls.append(float('nan'))
@@ -171,7 +174,7 @@ def summarize_snapshot(data, positive_class, suffix):
     return recalls, recall_mean, recall_std, fp_mean, fp_std
 
 
-def summarize_epochs(data, positive_class):
+def summarize_epochs(prediction_rows, positive_class):
     """Return {metric: (means, stds)} across seeds, per epoch."""
     means = {key: [] for key in METRICS}
     stds = {key: [] for key in METRICS}
@@ -180,7 +183,7 @@ def summarize_epochs(data, positive_class):
         fp_rates = []
         for seed in SEEDS:
             folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
-            rows = [r for r in data.rows if r.configuration_id == folder]
+            rows = [r for r in prediction_rows if r.configuration_id == folder]
             if not rows:
                 print(f"WARNING: no rows for {folder}")
                 continue
@@ -209,12 +212,17 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     data = load_predictions_dataset()
+    prediction_rows = [
+        row for row in data.rows
+        if row.experiment_name == EXPERIMENT_NAME
+        and row.evaluation_split == EVALUATION_SPLIT
+    ]
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
-          f"{len(data.rows)} rows")
+          f"{len(prediction_rows)} rows")
 
-    combined = summarize_epochs(data, "combined")
-    malignant = summarize_epochs(data, "malignant")
-    benign = summarize_epochs(data, "benign")
+    combined = summarize_epochs(prediction_rows, "combined")
+    malignant = summarize_epochs(prediction_rows, "malignant")
+    benign = summarize_epochs(prediction_rows, "benign")
 
     stats = {"combined": combined, "malignant": malignant, "benign": benign}
 
@@ -223,7 +231,7 @@ def main():
     for group in ("combined", "malignant", "benign"):
         entries = []
         for suffix, display in SNAPSHOTS:
-            recalls, rec_m, rec_s, fp_m, fp_s = summarize_snapshot(data, group, suffix)
+            recalls, rec_m, rec_s, fp_m, fp_s = summarize_snapshot(prediction_rows, group, suffix)
             entries.append({
                 "suffix": suffix,
                 "display": display,
@@ -262,6 +270,8 @@ def main():
         "centroid_definition": f"predicted centroid within {DEQ_FACTOR:g}x GT equivalent diameter",
         "deq_factor": DEQ_FACTOR,
         "dataset_snapshot_id": data.snapshot_id,
+        "experiment_name": EXPERIMENT_NAME,
+        "evaluation_split": EVALUATION_SPLIT,
         "seeds": SEEDS,
         "images": 625,
         "epochs": epochs,

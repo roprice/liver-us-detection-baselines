@@ -64,6 +64,9 @@ OUT_BASE = "epoch_convergence_by_mass_size_vs_detection_deq_050"
 SEEDS = [42, 43, 44]
 EPOCHS = [50, 100, 150, 300, 500, 750]
 
+TARGET_EXPERIMENT_NAME = "milestones_pilot"
+TARGET_EVALUATION_SPLIT = "test"
+
 # Mass-area bins on ground_truth_mass_area_px. (label, inclusive_low,
 # exclusive_high); high=None means "no upper bound".
 MASS_BINS = [
@@ -142,7 +145,7 @@ def count_mass_in_bin(rows, positive_class, low, high):
     return n
 
 
-def bin_counts_per_group(data):
+def bin_counts_per_group(all_rows):
     """Return {group: {bin_label: n_images}}.
 
     Counts are computed on the first seed's ``best`` checkpoint rows (the test
@@ -151,7 +154,7 @@ def bin_counts_per_group(data):
     """
     counts = {}
     for group in ("combined", "malignant", "benign"):
-        rows = [r for r in data.rows
+        rows = [r for r in all_rows
                 if r.configuration_id == f"predictions_milestones_625images_seed{SEEDS[0]}_best"]
         counts[group] = {
             label: count_mass_in_bin(rows, group, low, high)
@@ -203,7 +206,7 @@ def evaluate_epoch_bin(rows, positive_class, low, high=None):
     return crec, cfp_rate
 
 
-def summarize_bin_across_seeds(data, positive_class, low, high, suffix=None):
+def summarize_bin_across_seeds(all_rows, positive_class, low, high, suffix=None):
     """Return (recalls, fp_rates, rec_mean, rec_std, fp_mean, fp_std) for one bin.
 
     ``suffix`` selects a snapshot checkpoint (``best``/``best_mass``/``final``);
@@ -214,7 +217,7 @@ def summarize_bin_across_seeds(data, positive_class, low, high, suffix=None):
     fp_rates = []
     for seed in SEEDS:
         folder = f"predictions_milestones_625images_seed{seed}_{suffix}"
-        rows = [r for r in data.rows if r.configuration_id == folder]
+        rows = [r for r in all_rows if r.configuration_id == folder]
         if not rows:
             print(f"WARNING: no rows for {folder}")
             recalls.append(float('nan'))
@@ -230,13 +233,13 @@ def summarize_bin_across_seeds(data, positive_class, low, high, suffix=None):
     return recalls, fp_rates, rec_mean, rec_std, fp_mean, fp_std
 
 
-def summarize_epoch_bin_across_seeds(data, positive_class, low, high, epoch):
+def summarize_epoch_bin_across_seeds(all_rows, positive_class, low, high, epoch):
     """Return (rec_mean, rec_std, fp_mean, fp_std) for one bin at one epoch."""
     recalls = []
     fp_rates = []
     for seed in SEEDS:
         folder = f"predictions_milestones_625images_seed{seed}_epoch{epoch}"
-        rows = [r for r in data.rows if r.configuration_id == folder]
+        rows = [r for r in all_rows if r.configuration_id == folder]
         if not rows:
             print(f"WARNING: no rows for {folder}")
             continue
@@ -250,7 +253,7 @@ def summarize_epoch_bin_across_seeds(data, positive_class, low, high, epoch):
     return rec_mean, rec_std, fp_mean, fp_std
 
 
-def summarize_epochs_by_bin(data, positive_class):
+def summarize_epochs_by_bin(all_rows, positive_class):
     """Return {bin_label: {"case_recall": (means, stds), "case_fp_rate": (means, stds)}}.
 
     Bin keys follow MASS_BINS order; means/stds are lists aligned with EPOCHS.
@@ -263,7 +266,7 @@ def summarize_epochs_by_bin(data, positive_class):
         fp_stds = []
         for epoch in EPOCHS:
             rm, rs, fm, fs = summarize_epoch_bin_across_seeds(
-                data, positive_class, low, high, epoch
+                all_rows, positive_class, low, high, epoch
             )
             rec_means.append(rm)
             rec_stds.append(rs)
@@ -276,12 +279,12 @@ def summarize_epochs_by_bin(data, positive_class):
     return result
 
 
-def summarize_snapshot_by_bin(data, positive_class, suffix):
+def summarize_snapshot_by_bin(all_rows, positive_class, suffix):
     """Return list of per-bin entries for one snapshot checkpoint."""
     entries = []
     for label, low, high in MASS_BINS:
         recalls, fp_rates, rm, rs, fm, fs = summarize_bin_across_seeds(
-            data, positive_class, low, high, suffix=suffix
+            all_rows, positive_class, low, high, suffix=suffix
         )
         entries.append({
             "label": label,
@@ -321,13 +324,18 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     data = load_predictions_dataset()
+    rows = [
+        row for row in data.rows
+        if row.experiment_name == TARGET_EXPERIMENT_NAME
+        and row.evaluation_split == TARGET_EVALUATION_SPLIT
+    ]
     print(f"Loaded predictions dataset: {data.snapshot_id}, "
-          f"{len(data.rows)} rows")
+          f"{len(rows)} selected rows")
 
     stats = {
-        "combined": summarize_epochs_by_bin(data, "combined"),
-        "malignant": summarize_epochs_by_bin(data, "malignant"),
-        "benign": summarize_epochs_by_bin(data, "benign"),
+        "combined": summarize_epochs_by_bin(rows, "combined"),
+        "malignant": summarize_epochs_by_bin(rows, "malignant"),
+        "benign": summarize_epochs_by_bin(rows, "benign"),
     }
 
     # Snapshot detection per grouping and bin.
@@ -338,13 +346,13 @@ def main():
             per_snapshot.append({
                 "suffix": suffix,
                 "display": display,
-                "bins": summarize_snapshot_by_bin(data, group, suffix),
+                "bins": summarize_snapshot_by_bin(rows, group, suffix),
             })
         snapshot_stats[group] = per_snapshot
 
     epochs = EPOCHS
 
-    bin_counts = bin_counts_per_group(data)
+    bin_counts = bin_counts_per_group(rows)
 
     # --- Terminal tables ---
     for title, group in [("All masses", "combined"),
@@ -385,6 +393,8 @@ def main():
         ],
         "bin_counts": bin_counts,
         "dataset_snapshot_id": data.snapshot_id,
+        "experiment_name": TARGET_EXPERIMENT_NAME,
+        "evaluation_split": TARGET_EVALUATION_SPLIT,
         "seeds": SEEDS,
         "images": 625,
         "epochs": epochs,
