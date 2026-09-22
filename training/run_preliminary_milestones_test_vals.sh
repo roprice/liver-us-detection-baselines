@@ -16,12 +16,14 @@ set -e
 # pseudo-Dice and would be biased on this same image set.
 #
 # Prerequisites:
-#   - Completed training from run_preliminary_milestones_test.sh
-#   - splits_final.json in nnUNet_preprocessed/Dataset001_AUL/
-#   - All milestone .pth files present in nnUNet_results
+#   - A local preliminary_milestones_test_vals.zip archive containing
+#     nnUNet_raw/, nnUNet_preprocessed/, and nnUNet_results/ at its root
 #
 # Usage:
-#   bash training/run_preliminary_milestones_test_vals.sh 2>&1 | tee preliminary_milestones_val.log
+#   bash training/run_preliminary_milestones_test_vals.sh [archive-path] \
+#     2>&1 | tee preliminary_milestones_val.log
+#
+# If omitted, archive-path defaults to ~/preliminary_milestones_test_vals.zip.
 
 START_TIME=$(date +%s)
 
@@ -61,8 +63,9 @@ mkdir -p "$VAL_PRED_LOGS"
 PRED_TIMES_CSV="${VAL_PRED_LOGS}/val_prediction_times.csv"
 echo "size,seed,checkpoint,wall_clock_seconds,case_count" > "$PRED_TIMES_CSV"
 
-# --- GPU monitor cleanup on exit ---
+# --- Cleanup on exit ---
 GPU_MONITOR_PID=""
+RESTORE_DIR=""
 cleanup_gpu_monitor() {
     if [ -n "$GPU_MONITOR_PID" ]; then
         kill "$GPU_MONITOR_PID" 2>/dev/null
@@ -70,38 +73,39 @@ cleanup_gpu_monitor() {
         GPU_MONITOR_PID=""
     fi
 }
-trap cleanup_gpu_monitor EXIT
+cleanup() {
+    cleanup_gpu_monitor
+    if [ -n "$RESTORE_DIR" ]; then
+        rm -rf "$RESTORE_DIR"
+    fi
+}
+trap cleanup EXIT
 
 # =====================================================================
-# Restore prerequisites from Zenodo
+# Restore prerequisites from the uploaded archive
 # =====================================================================
-# The trained checkpoints, the fold split, and the training images are not
-# tracked in git. They are downloaded from the published Zenodo record so
-# the run can execute on a fresh instance without re-training or a slow
-# home upload. Replace ZENODO_RECORD with the published versioned record.
-ZENODO_RECORD="https://zenodo.org/records/9999999/files"
+ARCHIVE_PATH="${1:-${HOME}/preliminary_milestones_test_vals.zip}"
+if [ ! -f "$ARCHIVE_PATH" ]; then
+    echo "ERROR: Archive not found: ${ARCHIVE_PATH}"
+    echo "Upload preliminary_milestones_test_vals.zip or pass its path as the first argument."
+    exit 1
+fi
 
-mkdir -p "${nnUNet_raw}/${DATASET_NAME}" \
-         "${nnUNet_preprocessed}/${DATASET_NAME}" \
-         "${nnUNet_results}"
+RESTORE_DIR=$(mktemp -d)
+echo "--- Restoring prerequisites from ${ARCHIVE_PATH} ---"
+unzip -q "$ARCHIVE_PATH" -d "$RESTORE_DIR"
 
-echo "--- Restoring prerequisites from Zenodo ---"
+for DIRECTORY in nnUNet_raw nnUNet_preprocessed nnUNet_results; do
+    if [ ! -d "${RESTORE_DIR}/${DIRECTORY}" ]; then
+        echo "ERROR: Archive must contain ${DIRECTORY}/ at its root."
+        exit 1
+    fi
+done
 
-# Trained checkpoints + model folders (plans.json, dataset.json).
-# Expected layout inside the archive:
-#   Dataset001_AUL/nnUNetTrainerMilestones_seed{42,43,44}__nnUNetPlans__2d/fold_0/
-curl -fL -o /tmp/nnUNet_results.tar.gz \
-    "${ZENODO_RECORD}/nnUNet_results.tar.gz?download=1"
-tar xzf /tmp/nnUNet_results.tar.gz -C "${nnUNet_results}"
-
-# Fold split
-curl -fL -o "${nnUNet_preprocessed}/${DATASET_NAME}/splits_final.json" \
-    "${ZENODO_RECORD}/splits_final.json?download=1"
-
-# Training images (for the validation symlinks)
-curl -fL -o /tmp/imagesTr.tar.gz \
-    "${ZENODO_RECORD}/imagesTr.tar.gz?download=1"
-tar xzf /tmp/imagesTr.tar.gz -C "${nnUNet_raw}/${DATASET_NAME}/"
+mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
+cp -a "${RESTORE_DIR}/nnUNet_raw/." "$nnUNet_raw/"
+cp -a "${RESTORE_DIR}/nnUNet_preprocessed/." "$nnUNet_preprocessed/"
+cp -a "${RESTORE_DIR}/nnUNet_results/." "$nnUNet_results/"
 
 echo "--- Prerequisites restored ---"
 echo ""
@@ -307,4 +311,4 @@ echo "  selection. The 150/300/750 milestone checkpoints were not selected"
 echo "  based on val performance, so val is an unbiased surface"
 echo "  for comparing them."
 echo ""
-echo "  Archived to Zenodo: 10.5281/zenodo.9999999"
+echo "  Prerequisites restored from: ${ARCHIVE_PATH}"

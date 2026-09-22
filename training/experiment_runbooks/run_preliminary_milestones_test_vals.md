@@ -2,7 +2,7 @@
 
 This document lets you reproduce the held out validation-side predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
 
-The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting with these checkpoints on the held-out cases may provide additional epoch-convergence insight.
+The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting with these checkpoints on the held-out cases purports to provide additional epoch-convergence insight.
 
 Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
 
@@ -20,8 +20,32 @@ Because your environment may deviate in unpredictable ways, run these commands s
 
 ## Prerequisites
 
+- The `preliminary_milestones_test_vals.zip` archive uploaded from the Mac, as prepared below.
 - The nnU-Net environment variables set (see "Configure nnU-Net directories" below).
-- The `ZENODO_RECORD` URL in the script points at the published snapshot (placeholder `https://zenodo.org/records/9999999/files`).
+
+## Prepare the upload archive on the Mac
+
+From the directory containing the three nnU-Net directories, create a staging copy. Trim only the copied `nnUNet_results/` directory; keep the 150, 300, and 750 epoch checkpoints for seeds 42, 43, and 44, along with each trainer's `plans.json` and `dataset.json`.
+
+```sh
+rm -rf preliminary_milestones_test_vals
+mkdir preliminary_milestones_test_vals
+cp -R nnUNet_raw nnUNet_preprocessed nnUNet_results preliminary_milestones_test_vals/
+
+find preliminary_milestones_test_vals/nnUNet_results -type f -name '*.pth' \
+  ! -name checkpoint_epoch150.pth \
+  ! -name checkpoint_epoch300.pth \
+  ! -name checkpoint_epoch750.pth \
+  -delete
+
+(
+  cd preliminary_milestones_test_vals
+  zip -r ../preliminary_milestones_test_vals.zip \
+    nnUNet_raw nnUNet_preprocessed nnUNet_results
+)
+```
+
+The ZIP must contain `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at its root, not inside a `preliminary_milestones_test_vals/` directory.
 
 ## Server setup
 
@@ -91,21 +115,25 @@ export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_tra
 ENVEOF
 ```
 
-### 7. Confirm prerequisites are present
+### 7. Upload the archive
+
+From the Mac, upload the ZIP to the server home directory:
 
 ```sh
-# Training must already have produced the fold-0 split
-ls "$nnUNet_preprocessed/Dataset001_AUL/splits_final.json"
-
-# And the milestone checkpoints for each seed
-for SEED in 42 43 44; do
-  ls "$nnUNet_results/Dataset001_AUL/nnUNetTrainerMilestones_seed${SEED}__nnUNetPlans__2d/fold_0/"*.pth
-done
+scp preliminary_milestones_test_vals.zip root@<server-ip>:~/
 ```
+
+### 8. Confirm the archive contents
+
+```sh
+unzip -l ~/preliminary_milestones_test_vals.zip
+```
+
+Confirm it lists `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at the archive root. The runner restores these directories before building the validation image set and running predictions.
 
 ## Validation predictions
 
-### 8. Run the validation predictions
+### 9. Run the validation predictions
 
 The script builds a temporary directory of validation images (symlinks into `tmp/val_images_fold0/`), then predicts the three milestone checkpoints (150, 300, and 750) for each seed.
 
@@ -145,7 +173,7 @@ Prediction directories use the naming `predictions_milestones_val_625images_seed
 
 ## Verification
 
-### 9. Verify completion
+### 10. Verify completion
 
 ```sh
 # Reattach to the tmux session, or tail the log file
@@ -181,10 +209,6 @@ scp root@<server-ip>:~/preliminary_milestones_val.tar.gz /tmp/
 tar xzf /tmp/preliminary_milestones_val.tar.gz
 ```
 
-## Archive to Zenodo
+## Archive provenance
 
-The complete study snapshot — including `nnUNet_raw/`, `nnUNet_preprocessed/`, `nnUNet_results/`, and all logs — is archived on Zenodo. Cite the versioned record for reproducibility:
-
-> [https://doi.org/10.5281/zenodo.9999999](https://doi.org/10.5281/zenodo.9999999)
-
-Record the repo git SHA (printed by the runner's environment block) in the Zenodo description so the code and data stay linked.
+The runner logs the archive path and the repository git SHA in its output, linking the validation predictions to the uploaded `preliminary_milestones_test_vals.zip` snapshot.
