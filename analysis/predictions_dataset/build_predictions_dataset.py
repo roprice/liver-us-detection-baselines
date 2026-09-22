@@ -24,6 +24,8 @@ import numpy as np
 from PIL import Image
 from skimage.measure import label
 
+from analysis.predictions_dataset.constants import MIN_PRED_AREA_FRACTION
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
@@ -40,7 +42,6 @@ MASS_VALUE = 2
 # Chosen because 0.03% is the largest relative floor that (on the preliminary
 # seed-42 set) drops zero true detections under triage, centroid 0.5, or overlap
 # 0.2, while matching the prior ~100 px floor on average-sized images.
-MIN_PRED_AREA_FRACTION = 0.0003
 CONNECTIVITY = 2  # Full connectivity for 2D masks: 8-connected components.
 VALID_LABELS = {0, 1, 2}
 
