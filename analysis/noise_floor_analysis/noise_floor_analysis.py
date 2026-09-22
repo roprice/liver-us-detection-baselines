@@ -1,17 +1,5 @@
 """Explore the effect of a relative noise floor on detection.
 
-The current pipeline drops predicted mass components smaller than a fixed 100 px.
-Because image dimensions vary, a fixed floor is inconsistent across images. This
-script sweeps a *relative* floor (a fraction of image area) and reports, per
-criterion (triage, centroid 0.5, overlap 0.2), how many mass-present cases that
-are detected under the fixed-100px baseline become *missed* when the relative
-floor is used instead.
-
-It mirrors the matching logic in ``build_predictions_dataset.py`` (full 2D
-connectivity, per-component centroid / IoU criteria) so the "true prediction"
-counts line up with the CSV flags, but it recomputes retention locally so the
-relative floor can be swapped in without rebuilding the dataset.
-
 Run from project root:
     python analysis/noise_floor_analysis/noise_floor_analysis.py
 """
@@ -27,13 +15,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from analysis.predictions_dataset.constants import MIN_PRED_AREA_FRACTION
 from analysis.predictions_dataset.load_predictions_dataset import (
     load_predictions_dataset,
 )
 
 MASS_VALUE = 2
 CONNECTIVITY = 2
-FIXED_FLOOR = 100
 EXPERIMENT_NAME = "milestones_pilot"
 EVALUATION_SPLIT = "test"
 
@@ -41,7 +29,14 @@ EVALUATION_SPLIT = "test"
 AUL_MEAN_AREA = 341420
 
 # Relative floors to test, as fractions of image area (0.02% = 0.0002).
-FRACTIONS = [0.00005, 0.0001, 0.0002, 0.0003, 0.0004, 0.0005]
+FRACTIONS = [
+    0.00005,
+    0.0001,
+    0.0002,
+    MIN_PRED_AREA_FRACTION,
+    0.0004,
+    0.0005,
+]
 
 
 def retained_mass_mask(raw_mass_mask, fraction):
@@ -56,50 +51,74 @@ def retained_mass_mask(raw_mass_mask, fraction):
     return retained
 
 
-def centroid_detects(reference, retained_prediction, diameter_factor=0.5):
-    labeled_reference = label(reference, connectivity=CONNECTIVITY)
+def detection_results(reference, retained_prediction):
+    """Evaluate all detection views from one retained-component labeling pass."""
     labeled_prediction = label(retained_prediction, connectivity=CONNECTIVITY)
-    centroids = []
-    for c in range(1, labeled_prediction.max() + 1):
-        coords = np.argwhere(labeled_prediction == c)
-        centroids.append(coords.mean(axis=0))
-    if not centroids:
-        return False
-    centroids = np.asarray(centroids)
-    for c in range(1, labeled_reference.max() + 1):
-        coords = np.argwhere(labeled_reference == c)
-        gt_centroid = coords.mean(axis=0)
-        diameter = 2 * np.sqrt(len(coords) / np.pi)
-        dist = np.linalg.norm(centroids - gt_centroid, axis=1).min()
-        if dist <= diameter_factor * diameter:
-            return True
-    return False
+    if labeled_prediction.max() == 0:
+        return {criterion: False for criterion in CRITERIA}
 
-
-def max_component_iou(retained_prediction, reference):
-    components = label(retained_prediction, connectivity=CONNECTIVITY)
-    best = 0.0
-    for c in range(1, components.max() + 1):
-        component_mask = components == c
-        inter = int(np.logical_and(component_mask, reference).sum())
+    predicted_centroids = []
+    max_iou = 0.0
+    for component in range(1, labeled_prediction.max() + 1):
+        component_mask = labeled_prediction == component
+        predicted_centroids.append(np.argwhere(component_mask).mean(axis=0))
+        intersection = int(np.logical_and(component_mask, reference).sum())
         union = int(np.logical_or(component_mask, reference).sum())
         if union:
-            best = max(best, inter / union)
-    return best
+            max_iou = max(max_iou, intersection / union)
+
+    labeled_reference = label(reference, connectivity=CONNECTIVITY)
+    closest_centroid_ratio = float("inf")
+    predicted_centroids = np.asarray(predicted_centroids)
+    for component in range(1, labeled_reference.max() + 1):
+        coordinates = np.argwhere(labeled_reference == component)
+        gt_centroid = coordinates.mean(axis=0)
+        equivalent_diameter = 2 * np.sqrt(len(coordinates) / np.pi)
+        closest_distance = np.linalg.norm(
+            predicted_centroids - gt_centroid, axis=1
+        ).min()
+        closest_centroid_ratio = min(
+            closest_centroid_ratio, closest_distance / equivalent_diameter
+        )
+
+    return {
+        "triage": True,
+        "centroid_025": closest_centroid_ratio <= 0.25,
+        "centroid_050": closest_centroid_ratio <= 0.5,
+        "centroid_100": closest_centroid_ratio <= 1.0,
+        "overlap_000": max_iou > 0.0,
+        "overlap_020": max_iou > 0.2,
+        "overlap_050": max_iou > 0.5,
+    }
 
 
-def detect(retained_prediction, reference, criterion):
-    """Apply one detection criterion to a retained prediction."""
-    if criterion == "triage":
-        return bool(retained_prediction.any())
-    if criterion == "centroid_050":
-        return centroid_detects(reference, retained_prediction, 0.5)
-    if criterion == "overlap_020":
-        return max_component_iou(retained_prediction, reference) > 0.2
-    raise ValueError(f"unknown criterion {criterion}")
-
-
-CRITERIA = ["triage", "centroid_050", "overlap_020"]
+CRITERIA = [
+    "triage",
+    "centroid_025",
+    "centroid_050",
+    "centroid_100",
+    "overlap_000",
+    "overlap_020",
+    "overlap_050",
+]
+CRITERION_LABELS = {
+    "triage": "Triage",
+    "centroid_025": "Centroid 0.25",
+    "centroid_050": "Centroid 0.5",
+    "centroid_100": "Centroid 1.0",
+    "overlap_000": "Overlap >0",
+    "overlap_020": "Overlap >0.2",
+    "overlap_050": "Overlap >0.5",
+}
+BASELINE_FIELDS = {
+    "triage": "triage_detection_flag",
+    "centroid_025": "centroid_detection_deq_025_flag",
+    "centroid_050": "centroid_detection_deq_050_flag",
+    "centroid_100": "centroid_detection_deq_100_flag",
+    "overlap_000": "overlap_detection_iou_00_flag",
+    "overlap_020": "overlap_detection_iou_02_flag",
+    "overlap_050": "overlap_detection_iou_05_flag",
+}
 
 
 def load_mass_masks(row):
@@ -122,41 +141,64 @@ def main():
     rows = [r for r in rows if r.mass_present]
     print(f"{len(rows)} mass-present rows")
 
-    # Baseline detection under the fixed 100 px floor: reuse the CSV flags.
+    # Baseline detection under the selected relative floor: reuse the CSV flags.
     baseline = {
-        "triage": {r.image_id: r.triage_detection_flag for r in rows},
-        "centroid_050": {r.image_id: r.centroid_detection_deq_050_flag for r in rows},
-        "overlap_020": {r.image_id: r.overlap_detection_iou_02_flag for r in rows},
+        criterion: {
+            (r.configuration_id, r.image_id): getattr(r, BASELINE_FIELDS[criterion])
+            for r in rows
+        }
+        for criterion in CRITERIA
     }
 
     # Pre-load masks once.
-    masks = {}
-    for r in rows:
-        masks[r.image_id] = load_mass_masks(r)
+    masks = {
+        (r.configuration_id, r.image_id): load_mass_masks(r)
+        for r in rows
+    }
 
     results = []
-    print("\nFraction | AUL average (px) | triage lost | centroid0.5 lost | overlap0.2 lost")
-    print("---------|------------------|-------------|-----------------|----------------")
+    headers = ["Fraction", "AUL average (px)"] + [
+        CRITERION_LABELS[criterion] for criterion in CRITERIA
+    ]
+    print(f"\n{' | '.join(headers)}")
+    print(" | ".join("-" * len(header) for header in headers))
     for fraction in FRACTIONS:
         lost = {c: 0 for c in CRITERIA}
+        baseline_mismatches = []
         for r in rows:
-            pred_mass, ref_mass = masks[r.image_id]
+            key = (r.configuration_id, r.image_id)
+            pred_mass, ref_mass = masks[key]
             retained = retained_mass_mask(pred_mass, fraction)
+            detections = detection_results(ref_mass, retained)
             for criterion in CRITERIA:
-                was_detected = baseline[criterion][r.image_id]
-                is_detected = detect(retained, ref_mass, criterion)
+                was_detected = baseline[criterion][key]
+                is_detected = detections[criterion]
                 if was_detected and not is_detected:
                     lost[criterion] += 1
+                if (
+                    fraction == MIN_PRED_AREA_FRACTION
+                    and was_detected != is_detected
+                ):
+                    baseline_mismatches.append(
+                        (r.configuration_id, r.image_id, criterion,
+                         was_detected, is_detected)
+                    )
+        if fraction == MIN_PRED_AREA_FRACTION and baseline_mismatches:
+            raise AssertionError(
+                "Noise-floor sweep does not reproduce the predictions-dataset "
+                f"baseline at fraction {MIN_PRED_AREA_FRACTION}: "
+                f"{baseline_mismatches[:10]}"
+            )
         avg_px = int(fraction * AUL_MEAN_AREA)
         results.append({
             "fraction": fraction,
             "aul_average_px": avg_px,
-            "triage_lost": lost["triage"],
-            "centroid_050_lost": lost["centroid_050"],
-            "overlap_020_lost": lost["overlap_020"],
+            **{f"{criterion}_lost": lost[criterion] for criterion in CRITERIA},
         })
-        print(f"{fraction:.5f} | {avg_px:>16} | {lost['triage']:>11} | "
-              f"{lost['centroid_050']:>15} | {lost['overlap_020']:>14}")
+        values = [f"{fraction:.5f}", str(avg_px)] + [
+            str(lost[criterion]) for criterion in CRITERIA
+        ]
+        print(" | ".join(values))
 
     write_markdown(results)
     write_json(results)
@@ -172,25 +214,37 @@ def write_markdown(results):
         "dataset and across external validation sets), a fixed pixel floor is "
         "inconsistent. This sweep replaces it with a *relative* floor expressed "
         "as a fraction of each image's area, and measures how many mass-present "
-        "cases that are detected under the original fixed floor become missed "
+        "cases that are detected under the selected relative floor become missed "
         "under each candidate.",
         "",
-        "Three detection criteria are checked: triage (any retained mass), "
-        "centroid 0.5, and overlap IoU > 0.2. The loss is counted against the "
-        "fixed 100 px baseline flags already in the predictions dataset.",
+        "Seven detection criteria are checked: triage (any retained mass), "
+        "centroid distances of 0.25, 0.5, and 1.0 equivalent diameters, and "
+        "overlap IoU thresholds of >0, >0.2, and >0.5. Each is compared with "
+        "the selected relative-floor baseline flags already in the predictions "
+        "dataset.",
         "",
         "The AUL-average column converts each fraction to pixels using the "
         "weighted mean image area of the external AUL set (~341,420 px).",
         "",
-        "| Fraction | AUL average (px) | Triage lost | Centroid 0.5 lost | Overlap 0.2 lost |",
-        "|------:|------:|------:|------:|------:|",
+        "| Fraction | AUL average (px) | Triage | Centroid 0.25 | Centroid 0.5 | Centroid 1.0 | Overlap >0 | Overlap >0.2 | Overlap >0.5 |",
+        "|------:|------:|------:|------:|------:|------:|------:|------:|------:|",
     ]
     for r in results:
+        values = [
+            r[f"{criterion}_lost"]
+            for criterion in CRITERIA
+        ]
         lines.append(
             f"| {r['fraction']:.5f} | {r['aul_average_px']} | "
-            f"{r['triage_lost']} | {r['centroid_050_lost']} | {r['overlap_020_lost']} |"
+            + " | ".join(str(value) for value in values)
+            + " |"
         )
-    lines.append("")
+    lines.extend([
+        "",
+        "*All numeric detection columns are counts of predictions lost relative "
+        "to the selected 0.03%-of-image-area baseline.*",
+        "",
+    ])
     out = SCRIPT_DIR / "noise_floor_analysis.md"
     out.write_text("\n".join(lines))
     print(f"Wrote {out}")
@@ -201,11 +255,12 @@ def write_json(results):
     payload = {
         "description": (
             "Sweep of a relative noise floor (fraction of image area) versus "
-            "the fixed 100 px baseline. 'lost' counts mass-present cases that "
-            "were detected under 100 px but missed under the candidate floor."
+            "the selected relative baseline. 'lost' counts mass-present cases that "
+            "were detected under the selected floor but missed under the candidate "
+            "floor."
         ),
         "aul_mean_area_px": AUL_MEAN_AREA,
-        "baseline_floor_px": FIXED_FLOOR,
+        "baseline_floor_fraction": MIN_PRED_AREA_FRACTION,
         "criteria": CRITERIA,
         "results": results,
     }
