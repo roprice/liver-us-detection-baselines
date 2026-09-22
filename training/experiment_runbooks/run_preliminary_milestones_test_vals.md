@@ -45,7 +45,9 @@ find preliminary_milestones_test_vals/nnUNet_results -type f -name '*.pth' \
 )
 ```
 
-The ZIP must contain `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at its root, not inside a `preliminary_milestones_test_vals/` directory.
+The ZIP must contain `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at its root, not inside a `preliminary_milestones_test_vals/` directory. 
+
+This should create a ZIP file named `preliminary_milestones_test_vals.zip` of ~3.4 GB.
 
 ## Server setup
 
