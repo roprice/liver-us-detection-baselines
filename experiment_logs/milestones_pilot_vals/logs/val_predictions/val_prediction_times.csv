@@ -1,0 +1,10 @@
+size,seed,checkpoint,wall_clock_seconds,case_count
+625,42,epoch150,31,125
+625,42,epoch300,29,125
+625,42,epoch750,29,125
+625,43,epoch150,29,125
+625,43,epoch300,29,125
+625,43,epoch750,29,125
+625,44,epoch150,29,125
+625,44,epoch300,29,125
+625,44,epoch750,29,125
