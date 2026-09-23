@@ -34,6 +34,8 @@ There is a large deviation in proportionality to the actual pool that doesn't ev
 
 It looks as though Verda raised the pricing on the their RTX 6000 Ada from $1.10/h to $1.12/h; still worth it, though, and I'll keep using it.
 
+I've also decided to intervene in the preprocessing to check whether nnUnet  assigned at least one image of each class. for each size of training run. 
+
 #### Afternoon
 
 As planned, I ran analysis on the vals and the results remain more or less the same - the epoch 150 checkpoint wins on the criteria set yesterday in this log ("_I’ll choose the smallest epoch budget within 0.02 (accross seeds) of the winning epoch budget_") as its performance was 0.016 less than that of epoch 750.

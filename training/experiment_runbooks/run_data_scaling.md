@@ -68,7 +68,7 @@ source ~/.bashrc
 
 ```sh
 apt update
-apt install python3-pip unzip python-is-python3 tmux -y
+apt install python3-pip python3-dev unzip python-is-python3 tmux -y
 ```
 
 ### 3. Clone the repository
@@ -102,7 +102,7 @@ pip install -r requirements.txt --break-system-packages
 pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
-The `nnunetv2==2.8.1` pin is the reproducibility anchor. The runner also records the installed nnU-Net version, PyTorch version, source revision where available, and repository revision.
+The `nnunetv2==2.8.1` pin is the reproducibility anchor. `python3-dev` supplies `Python.h`, which PyTorch/Triton requires when nnU-Net enables `torch.compile` on current PyTorch releases. The runner also records the installed nnU-Net version, PyTorch version, source revision where available, and repository revision.
 
 ### 6. Configure nnU-Net directories
 
@@ -175,7 +175,9 @@ mkdir -p experiment_logs/data_scaling
 
 # Start a persistent session so the long experiment survives an SSH disconnect
 tmux new -s data-scaling
+```
 
+```sh
 # Inside tmux
 bash training/run_data_scaling.sh 2>&1 | tee experiment_logs/data_scaling/data_scaling.log
 ```
@@ -236,6 +238,8 @@ The runner is safe to re-run after an interruption:
 - A training run with `checkpoint_final.pth` already present is skipped; incomplete training is resumed through nnU-Net's `--c` option.
 - Complete 110-mask prediction directories and completed inference benchmark summaries are skipped. Incomplete prediction directories are removed and regenerated.
 
+Checkpoints created before the all-pathologies split policy must not be resumed or reused: the trainer and runner reject them. Before restarting an old experiment, archive its data-scaling model folders, predictions, inference results, and run metrics outside the active result/log locations. Keep the raw datasets, preprocessed data, original `splits_final.json` files, and preprocessing completion markers. New runs then train from scratch with the repaired splits without repeating preprocessing.
+
 If subset creation is interrupted and leaves a partial `Dataset002_AUL_005` through `Dataset008_AUL_320` directory, delete only that partial generated directory, then rerun the script. The source `Dataset001_AUL` must not be deleted.
 
 ## Verification
@@ -273,7 +277,9 @@ for DIR in "$nnUNet_results"/predictions_data_scaling_*images_seed*_final; do
 find experiment_logs/data_scaling/logs/inference -name inference_summary_cuda.csv | wc -l  # expect 8
 ```
 
-The data-pool sizes describe the raw datasets. As in the milestones pilot, nnU-Net uses fold 0, so its fit and internal-validation partitions are determined from each pool by nnU-Net's standard split logic. The test set remains completely separate and is never used for preprocessing decisions, gradient updates, checkpoint selection, or subset construction.
+The data-pool sizes describe the raw datasets, not the number of gradient-training images. The trainer starts with nnU-Net's fold-0 split and checks every pool size for malignant, benign, and normal training examples. If a pathology is absent, it swaps one validation case of that pathology with a training case from a category containing at least two training cases. Missing categories are processed in malignant/benign/normal order, and candidate cases are chosen by sorted case ID, independently of the initialization seed. Splits already containing all three training categories are unchanged; partition sizes and disjointness are preserved. This guarantees representation, not proportionality within the training partition or nested training partitions across sizes.
+
+For the current five-case pool, the repaired split contains two malignant, one benign, and one normal training image, with one malignant validation image. All three initialization seeds use the same effective split. The original `splits_final.json` remains unchanged; the authoritative effective assignments and counts are saved in each model's `fold_0/data_scaling_split.json`. The test set remains completely separate and is never used for preprocessing decisions, gradient updates, checkpoint selection, or subset construction.
 
 ## Download results
 

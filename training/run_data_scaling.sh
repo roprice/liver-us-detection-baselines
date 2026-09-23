@@ -493,6 +493,20 @@ for SIZE in "${SUBSET_SIZES[@]}"; do
         echo "GPU monitor started (PID ${GPU_MONITOR_PID}, log: ${GPU_MONITOR_LOG})"
 
         if [ -f "$FINAL_CHECKPOINT" ]; then
+            python - "$FINAL_CHECKPOINT" "${SCRIPT_DIR}/custom_trainers" <<'PY'
+import sys
+
+import torch
+
+sys.path.insert(0, sys.argv[2])
+from nnUNetTrainerDataScaling import nnUNetTrainerDataScaling
+
+checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
+if checkpoint.get("data_scaling_split_policy") != nnUNetTrainerDataScaling.SPLIT_POLICY:
+    raise RuntimeError(
+        "Final checkpoint uses an old split policy. Archive the old model, "
+        "predictions, and run metrics before restarting from scratch.")
+PY
             echo "SKIP: final checkpoint already exists at ${FINAL_CHECKPOINT}"
         else
             echo "Train start: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

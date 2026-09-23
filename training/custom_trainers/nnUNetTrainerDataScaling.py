@@ -13,7 +13,10 @@ Usage:
         -tr nnUNetTrainerDataScaling_seed42 --c
 """
 
+import json
 import random
+from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -22,11 +25,98 @@ from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 
 class nnUNetTrainerDataScaling(nnUNetTrainer):
     training_seed = None
+    SPLIT_POLICY = "all_pathologies_in_training_v1"
+    PATHOLOGIES = ("Malignant", "Benign", "Normal")
 
     def __init__(self, plans, configuration, fold, dataset_json,
                  device=torch.device("cuda")):
         super().__init__(plans, configuration, fold, dataset_json, device)
         self.num_epochs = 150
+
+    def do_split(self):
+        training_cases, validation_cases = super().do_split()
+        training_cases = sorted(training_cases)
+        validation_cases = sorted(validation_cases)
+        if set(training_cases) & set(validation_cases):
+            raise RuntimeError("Data scaling requires disjoint training and validation cases")
+
+        from nnunetv2.paths import nnUNet_raw
+
+        mapping_path = (
+            Path(nnUNet_raw) / self.plans_manager.dataset_name / "case_mapping.json")
+        records = json.loads(mapping_path.read_text())
+        categories = {}
+        for record in records:
+            if record["split"] == "train":
+                case = record["case_name"]
+                if case in categories:
+                    raise RuntimeError(f"Duplicate training case in {mapping_path}: {case}")
+                categories[case] = record["category"]
+        for case in training_cases + validation_cases:
+            if categories.get(case) not in self.PATHOLOGIES:
+                raise RuntimeError(f"Missing or unsupported pathology for {case}")
+
+        original_split = {"train": training_cases.copy(), "val": validation_cases.copy()}
+        counts = Counter(categories[case] for case in training_cases)
+        for pathology in self.PATHOLOGIES:
+            if counts[pathology]:
+                continue
+            incoming = next(
+                (case for case in validation_cases if categories[case] == pathology), None)
+            outgoing = next(
+                (case for case in training_cases if counts[categories[case]] > 1), None)
+            if incoming is None or outgoing is None:
+                raise RuntimeError(
+                    f"Cannot retain all three pathologies in training: missing {pathology}")
+            training_cases.remove(outgoing)
+            validation_cases.remove(incoming)
+            training_cases.append(incoming)
+            validation_cases.append(outgoing)
+            training_cases.sort()
+            validation_cases.sort()
+            counts[pathology] += 1
+            counts[categories[outgoing]] -= 1
+            self.print_to_log_file(
+                f"Split repair: {incoming} ({pathology}) -> train; "
+                f"{outgoing} ({categories[outgoing]}) -> validation")
+
+        effective_split = {"train": training_cases, "val": validation_cases}
+        evidence = {
+            "policy": self.SPLIT_POLICY,
+            "fold": self.fold,
+            "original_split": original_split,
+            "effective_split": effective_split,
+            "pathology_counts": {
+                partition: dict(Counter(categories[case] for case in cases))
+                for partition, cases in effective_split.items()
+            },
+        }
+        if self.local_rank == 0:
+            output = Path(self.output_folder)
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "data_scaling_split.json").write_text(
+                json.dumps(evidence, indent=2) + "\n")
+        self.print_to_log_file("Effective split pathology counts:", evidence["pathology_counts"])
+        return training_cases, validation_cases
+
+    def save_checkpoint(self, filename):
+        super().save_checkpoint(filename)
+        if self.local_rank == 0 and not self.disable_checkpointing:
+            checkpoint = torch.load(filename, map_location="cpu", weights_only=False)
+            checkpoint["data_scaling_split_policy"] = self.SPLIT_POLICY
+            torch.save(checkpoint, filename)
+
+    def load_checkpoint(self, filename_or_checkpoint):
+        checkpoint = (
+            torch.load(filename_or_checkpoint, map_location="cpu", weights_only=False)
+            if isinstance(filename_or_checkpoint, (str, Path))
+            else filename_or_checkpoint)
+        if checkpoint.get("data_scaling_split_policy") != self.SPLIT_POLICY:
+            raise RuntimeError(
+                "This checkpoint predates the all-pathologies training split policy. "
+                "Archive the old run's result folder and restart from scratch; "
+                "do not resume it with a different split.")
+        super().load_checkpoint(checkpoint)
 
     def initialize(self):
         first_init = not self.was_initialized
