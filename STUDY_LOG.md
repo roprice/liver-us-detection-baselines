@@ -6,6 +6,34 @@ Top-down chronologically, new entries first. First logged on Github 2026-09-21; 
 ## 2026-09-22 
 
 
+#### Evening
+
+After reviewing the literature with respect to data scarcity and data scaling principles (eg Chu et al., 2025), I refined my earlier concept in two ways: 
+- **starting as small as possible, for more emphasis on the low end of what is possible**
+- power of 2 logarithmic scaling
+
+
+Given that triage-level detection a forgiving metric to begin with, this seems like a logical area to explore and establish baselines for.  Thee secondary benefit to evaluating smaller training sizes: training efficieny, translating to lower energy consumption and lower total costs.
+
+Lower than 5 would be 3 (1 of each) and has no proportionality with the source training pool - 370 malignant, 170 benign, and 85. So I start at 5 and go: 5,10,20,40,80,160,320,625(full pool). Subsets were stratified by pathology class (malignant, benign, normal) to preserve the source pool ratios as closely as integer counts allow.
+
+
+| Size |    Malignant |      Benign | Mass-negative |
+| ---: | -----------: | ----------: | ------------: |
+|    5 |   3 (+1.35%) | 1 (−26.47%) |   1 (+47.06%) |
+|   10 |   6 (+1.35%) | 3 (+10.29%) |   1 (−26.47%) |
+|   20 |  12 (+1.35%) |  5 (−8.09%) |   3 (+10.29%) |
+|   40 |  24 (+1.35%) | 11 (+1.10%) |    5 (−8.09%) |
+|   80 |  47 (−0.76%) | 22 (+1.10%) |   11 (+1.10%) |
+|  160 |  95 (+0.30%) | 43 (−1.19%) |   22 (+1.10%) |
+|  320 | 189 (−0.23%) | 87 (−0.05%) |   44 (+1.10%) |
+|  625 |  370 (0.00%) | 170 (0.00%) |    85 (0.00%) |
+
+
+There is a large deviation in proportionality to the actual pool that doesn't even out across classes until 80 images. But these are the smallest deviations possible so not a concern.
+
+It looks as though Verda raised the pricing on the their RTX 6000 Ada from $1.10/h to $1.12/h; still worth it, though, and I'll keep using it.
+
 #### Afternoon
 
 As planned, I ran analysis on the vals and the results remain more or less the same - the epoch 150 checkpoint wins on the criteria set yesterday in this log ("_I’ll choose the smallest epoch budget within 0.02 (accross seeds) of the winning epoch budget_") as its performance was 0.016 less than that of epoch 750.
