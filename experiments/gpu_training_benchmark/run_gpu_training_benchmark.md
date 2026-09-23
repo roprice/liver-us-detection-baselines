@@ -80,7 +80,6 @@ rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click
 
 ```sh
 pip install -r requirements.txt --break-system-packages
-pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
 The explicit `nnunetv2==2.8.1` pin is the reproducibility anchor. The benchmark result records the installed PyTorch and cuDNN versions.
@@ -110,7 +109,6 @@ DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)
 ```sh
 mkdir -p data/source
 cd data/source
-pip install zenodo-get --break-system-packages
 zenodo_get 7272660
 md5sum *.zip
 unzip '*.zip' -d AUL
@@ -256,7 +254,6 @@ rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click
 
 ```sh
 pip install -r requirements.txt --break-system-packages
-pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
 ### 6. Configure nnU-Net directories

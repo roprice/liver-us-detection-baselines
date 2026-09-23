@@ -99,7 +99,6 @@ rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click
 
 ```sh
 pip install -r requirements.txt --break-system-packages
-pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
 The `nnunetv2==2.8.1` pin is the reproducibility anchor. `python3-dev` supplies `Python.h`, which PyTorch/Triton requires when nnU-Net enables `torch.compile` on current PyTorch releases. The runner also records the installed nnU-Net version, PyTorch version, source revision where available, and repository revision.
@@ -137,7 +136,6 @@ This fixed versioned record has the following expected archive checksums:
 ```sh
 mkdir -p data/source
 cd data/source
-pip install zenodo-get --break-system-packages
 zenodo_get 7272660
 md5sum *.zip
 unzip Benign.zip -d AUL

@@ -93,7 +93,6 @@ rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click
 
 ```sh
 pip install -r requirements.txt --break-system-packages
-pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
 The explicit nnU-Net version pin (nnunetv2==2.8.1) is the reproducibility anchor. The runner logs the installed nnU-Net version, the PyTorch version, and the repo's git SHA during its environment block; the remaining dependencies are pinned in requirements.txt.

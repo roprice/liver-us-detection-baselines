@@ -56,7 +56,6 @@ rm -rf /usr/lib/python3/dist-packages/click /usr/lib/python3/dist-packages/click
 
 cd ~/liver-us-detection-baselines
 pip install -r requirements.txt --break-system-packages
-pip install "nnunetv2==2.8.1" idna --break-system-packages
 ```
 
 ## 5. Verify the GPU
