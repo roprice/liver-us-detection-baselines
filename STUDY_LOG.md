@@ -10,8 +10,26 @@ Top-down chronologically, new entries first. First logged on Github 2026-09-21; 
 #### Morning
 
 
+Before seeing data scaling numbers, I plan to compare the final 625-image, 150-epoch models with the final 625-image, 1000-epoch models from the convergence pilot, both fully annealed. This comparison differs from the earlier comparison of checkpoints during the milestones_pilot experiment. I'll use the same held-out cases and triage-level detection metric for both budgets and report the score for each seed, the  score,  training time, and inference performance. The existing 0.02 margin will serve as a reference for the performance score and trade offs with training and inference. This is to assess the earlier epoch choice not test its validity.
 
+Before finalizing the data scaling training and running analysis, I wanted to confirm which training set size will participate in the subsequent study, the ResEnc ablation.
 
+My approach will be to choose three training set sizes based on triage-level detection, as follows. 
+- Use the highest score as the selection benchmark
+- from the entire pool of models (ie PlainConvUNet data scaling models), choose the smallest one that performs within 0.10 of the selection benchmark; remove it from the pool.
+- from the remaining pool of models, choose the smallest one that performs within 0.05 of the selection benchmark; remove it from the pool.
+- from the remaining pool of models, choose the smallest one that performs within 0.02 of the selection benchmark; remove it from the pool.
+- if there are less than three selected training set sizes, select the next 1 or 2 best performing models.
+
+I will identify which sizes met a margin and which entered through the fallback.
+
+This biases small models in the selection, in keeping with the goal of the study.
+
+Barring unforeseen insights (eg unexpectedly strong performance at secondary detection modes), the three distinct training set sizes will be used for the Resenc comparison described below.
+
+I am planning a small, limited-scope ResEnc ablation study, pending analysis of the data scaling study currently in training. Based on my research, my loose hypothesis is that ResEnc 2D is likely to underperform PlainConvUNet 2D on small training sizes of B-mode ultrasound imagery, especially factoring in compute. But because I was unable to find such a comparison, I'd like to establish one. More importantly, I want to validate the choice of PlainConvUNet as the study's default network architecture. I'll use ResEnc M as it's most similar to PlainConvUNet in compute costs.
+
+I'll base the comparison not just on performance but on training compute and inference and compare models training-size to training-size. For example, if the selected training set sizes are 20, 320 and 625, I'll train Resenc models, across the 3 seeds, at those same sizes, and compare performance, training, and inference accordingly, with extra weight given to inference.
 
 
 ## 2026-09-22 
