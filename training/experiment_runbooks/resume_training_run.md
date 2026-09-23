@@ -76,7 +76,7 @@ Then, inside the tmux session:
 
 ```sh
 cd ~/liver-us-detection-baselines
-bash training/run_preliminary_milestones_test.sh 2>&1 | tee preliminary_milestones_test.log
+bash training/run_milestones_pilot.sh 2>&1 | tee run_milestones_pilot.log
 ```
 
 Detach with `Ctrl+b` `d`; reattach with `tmux attach -t training`.

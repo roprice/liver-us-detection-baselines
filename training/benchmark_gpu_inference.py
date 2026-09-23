@@ -17,7 +17,7 @@ Measures:
     afterward as part of the full measured set.
 
 This does not modify or duplicate the per-checkpoint batch prediction
-already performed by nnUNetv2_predict in run_preliminary_milestones_test.sh.
+already performed by nnUNetv2_predict in run_milestones_pilot.sh.
 That measures end-to-end throughput (including preprocessing and export)
 per checkpoint. This script isolates GPU (or CPU) compute latency for a
 single representative checkpoint per seed, since forward-pass latency
