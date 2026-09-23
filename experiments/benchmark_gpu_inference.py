@@ -24,7 +24,7 @@ single representative checkpoint per seed, since forward-pass latency
 depends on architecture and input size, not on which weights are loaded.
 
 Usage (on the rented GPU instance, before it is released):
-  python training/benchmark_gpu_inference.py \\
+  python experiments/benchmark_gpu_inference.py \\
     --nnunet-raw "$nnUNet_raw" \\
     --dataset-name Dataset001_AUL \
     --dataset-id 1 \
@@ -36,7 +36,7 @@ Usage (on the rented GPU instance, before it is released):
 
 To repeat later on a different machine with the same checkpoints, images,
 and inference settings (only --device and --output-dir change):
-  python training/benchmark_gpu_inference.py \\
+  python experiments/benchmark_gpu_inference.py \\
     --nnunet-raw /path/to/nnUNet_raw \\
     --dataset-name Dataset001_AUL \\
     --dataset-id 1 \\

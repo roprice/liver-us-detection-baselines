@@ -15,10 +15,10 @@ set -euo pipefail
 #
 # Prerequisites:
 #   - Dataset001_AUL in nnUNet_raw
-#   - nnUNetTrainerDataScaling.py in training/custom_trainers/
+#   - nnUNetTrainerDataScaling.py in experiments/custom_trainers/
 #
 # Usage:
-#   bash training/run_data_scaling.sh 2>&1 | \
+#   bash experiments/run_data_scaling.sh 2>&1 | \
 #     tee experiment_logs/data_scaling/data_scaling.log
 
 START_TIME=$(date +%s)

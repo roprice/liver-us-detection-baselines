@@ -82,8 +82,8 @@ cd liver-us-detection-baselines
 Confirm the checkout contains these files before continuing:
 
 ```sh
-ls training/run_data_scaling.sh
-ls training/custom_trainers/nnUNetTrainerDataScaling.py
+ls experiments/run_data_scaling.sh
+ls experiments/custom_trainers/nnUNetTrainerDataScaling.py
 ```
 
 ### 4. Resolve system Python package conflicts
@@ -110,7 +110,7 @@ The `nnunetv2==2.8.1` pin is the reproducibility anchor. `python3-dev` supplies 
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
@@ -118,7 +118,7 @@ cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 ENVEOF
 ```
 
@@ -150,7 +150,7 @@ cd ../..
 ### 8. Convert AUL to nnU-Net format
 
 ```sh
-python training/convert_aul.py \
+python experiments/convert_aul.py \\
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
@@ -179,7 +179,7 @@ tmux new -s data-scaling
 
 ```sh
 # Inside tmux
-bash training/run_data_scaling.sh 2>&1 | tee experiment_logs/data_scaling/data_scaling.log
+bash experiments/run_data_scaling.sh 2>&1 | tee experiment_logs/data_scaling/data_scaling.log
 ```
 
 Detach without stopping the run with `Ctrl+b`, then `d`. Reattach after reconnecting with:

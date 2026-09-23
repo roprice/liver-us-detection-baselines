@@ -78,7 +78,7 @@ git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
 ```
 
-Confirm this checkout contains `training/run_milestones_pilot_vals.sh` and the `training/custom_trainers/` directory before continuing.
+Confirm this checkout contains `experiments/run_milestones_pilot_vals.sh` and the `experiments/custom_trainers/` directory before continuing.
 
 ### 4. Resolve system Python package conflicts
 
@@ -104,7 +104,7 @@ The explicit nnU-Net version pin (nnunetv2==2.8.1) is the reproducibility anchor
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
@@ -113,7 +113,7 @@ cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 ENVEOF
 ```
 
@@ -144,7 +144,7 @@ The script builds a temporary directory of validation images (symlinks into `tmp
 tmux new -s val
 
 # Inside tmux, run the runner, teeing output to a file you can tail later
-bash training/run_milestones_pilot_vals.sh 2>&1 | tee preliminary_milestones_val.log
+bash experiments/run_milestones_pilot_vals.sh 2>&1 | tee preliminary_milestones_val.log
 ```
 
 Detach from tmux without stopping the run with `Ctrl+b` then `d`. Reattach after a reconnect with `tmux attach -t val`.

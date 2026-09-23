@@ -19,7 +19,7 @@ set -e
 #   - nnUNetTrainerMilestones.py in custom_trainers/
 #
 # Usage:
-#   script -c "bash training/run_milestones_pilot.sh" logs/training/preliminary_experiment.log
+#   script -c "bash experiments/run_milestones_pilot.sh" logs/training/preliminary_experiment.log
 
 START_TIME=$(date +%s)
 

@@ -68,7 +68,7 @@ for name in ('nnUNet_raw', 'nnUNet_preprocessed'):
 raw = Path(os.environ['nnUNet_raw']).resolve() / 'Dataset001_AUL'
 prepared = Path(os.environ['nnUNet_preprocessed']).resolve() / 'Dataset001_AUL'
 runner = Path(os.environ['GPU_BENCHMARK_RUNNER']).resolve()
-repo = runner.parent.parent
+repo = runner.parent.parent.parent
 logs = repo / 'logs' / 'gpu_training_benchmark'
 logs.mkdir(parents=True, exist_ok=True)
 manifest_path = prepared / 'benchmark_manifest.json'
@@ -77,7 +77,7 @@ if args.prepare_only:
     if manifest_path.exists():
         fail('Prepared benchmark data already exist. Reuse this dataset or select a new preprocessing directory.')
     if len(list((raw / 'imagesTr').glob('*_0000.png'))) != 625:
-        fail('Expected 625 training images. Run training/convert_aul.py first.')
+        fail('Expected 625 training images. Run experiments/convert_aul.py first.')
     if len(list((raw / 'labelsTr').glob('*.png'))) != 625:
         fail('Expected 625 training labels. Inspect the converted dataset.')
     prep_log = logs / ('prepare_' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + '.log')
@@ -144,8 +144,8 @@ out = Path(tempfile.mkdtemp(prefix=stamp + '_', dir=logs))
 print(f'Results directory: {out}', flush=True)
 (out / 'status.txt').write_text('INCOMPLETE\n')
 shutil.copy2(runner, out / runner.name)
-for source in (repo / 'training' / 'convert_aul.py', repo / 'requirements.txt',
-               repo / 'gpu_training_benchmark' / 'run_gpu_training_benchmark.md'):
+for source in (repo / 'experiments' / 'convert_aul.py', repo / 'requirements.txt',
+               repo / 'experiments' / 'gpu_training_benchmark' / 'run_gpu_training_benchmark.md'):
     if source.is_file():
         shutil.copy2(source, out / source.name)
 for filename in ('nnUNetPlans.json', 'dataset.json', 'dataset_fingerprint.json', 'splits_final.json', 'benchmark_manifest.json'):

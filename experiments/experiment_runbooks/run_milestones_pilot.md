@@ -19,7 +19,7 @@ Because your environment may deviate in unpredictable ways, run these commands s
 | Trainer | `nnUNetTrainerMilestones_seed{42,43,44}` |
 | Architecture | PlainConvUNet 2D |
 
-Each seed saves multiple milestone checkpoints (epochs 50 through 1000), a best-mean-Dice checkpoint, and a best-mass-Dice checkpoint (both EMA-smoothed). After training, the runner triggers prediction on all 27 checkpoints on the 110-image test set; it runs a per-image GPU inference benchmark (`training/benchmark_gpu_inference.py`).
+Each seed saves multiple milestone checkpoints (epochs 50 through 1000), a best-mean-Dice checkpoint, and a best-mass-Dice checkpoint (both EMA-smoothed). After training, the runner triggers prediction on all 27 checkpoints on the 110-image test set; it runs a per-image GPU inference benchmark (`experiments/benchmark_gpu_inference.py`).
 
 ## Estimated cost as of September 2026
 
@@ -58,7 +58,7 @@ git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
 ```
 
-Confirm this checkout contains `training/run_milestones_pilot.sh`, the `training/custom_trainers/` directory, and `training/benchmark_gpu_inference.py` before continuing.
+Confirm this checkout contains `experiments/run_milestones_pilot.sh`, the `experiments/custom_trainers/` directory, and `experiments/benchmark_gpu_inference.py` before continuing.
 
 ### 4. Resolve system Python package conflicts
 
@@ -84,7 +84,7 @@ The explicit nnU-Net version pin (nnunetv2==2.8.1) is the reproducibility anchor
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
@@ -93,7 +93,7 @@ cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 ENVEOF
 ```
 
@@ -125,7 +125,7 @@ cd ../..
 ### 8. Convert to nnU-Net format
 
 ```sh
-python training/convert_aul.py \
+python experiments/convert_aul.py \\
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
@@ -148,7 +148,7 @@ ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
 tmux new -s training
 
 # Inside tmux, run the runner, teeing output to a file you can tail later
-bash training/run_milestones_pilot.sh 2>&1 | tee preliminary_milestones_test.log
+bash experiments/run_milestones_pilot.sh 2>&1 | tee preliminary_milestones_test.log
 ```
 
 Detach from tmux without stopping training with `Ctrl+b` then `d`. Reattach after a reconnect (or from any other SSH session) with `tmux attach -t training`. The runner keeps running inside tmux regardless of the SSH connection.

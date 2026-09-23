@@ -31,7 +31,7 @@ cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
 export nnUNet_results="$HOME/nnUNet_results"
-export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/training/custom_trainers"
+export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_trainers"
 ENVEOF
 
 cat >> ~/.bashrc << 'PROMPTEOF'
@@ -76,7 +76,7 @@ Then, inside the tmux session:
 
 ```sh
 cd ~/liver-us-detection-baselines
-bash training/run_milestones_pilot.sh 2>&1 | tee run_milestones_pilot.log
+bash experiments/run_milestones_pilot.sh 2>&1 | tee run_milestones_pilot.log
 ```
 
 Detach with `Ctrl+b` `d`; reattach with `tmux attach -t training`.

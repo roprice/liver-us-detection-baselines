@@ -10,7 +10,7 @@ The primary measurement is `fastest_epoch`, which nnU-Net writes to `benchmark_r
 
 ## Files and fixed conditions
 
-This guide uses `training/convert_aul.py` from the study repository.
+This guide uses `experiments/convert_aul.py` from the study repository.
 
 | Condition | Value |
 |---|---|
@@ -65,7 +65,7 @@ git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
 ```
 
-Make sure that this checkout contains `training/convert_aul.py` before continuing.
+Make sure that this checkout contains `experiments/convert_aul.py` before continuing.
 
 ### 4. Resolve system Python package conflicts
 
@@ -129,7 +129,7 @@ Make sure that the archive hashes match these values:
 ### 8. Convert AUL to nnU-Net format
 
 ```sh
-python training/convert_aul.py \
+python experiments/convert_aul.py \\
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```

@@ -20,7 +20,7 @@ set -e
 #     nnUNet_raw/, nnUNet_preprocessed/, and nnUNet_results/ at its root
 #
 # Usage:
-#   bash training/run_milestones_pilot_vals.sh [archive-path] \
+#   bash experiments/run_milestones_pilot_vals.sh [archive-path] \
 #     2>&1 | tee preliminary_milestones_val.log
 #
 # If omitted, archive-path defaults to ~/run_milestones_pilot_vals.zip.
