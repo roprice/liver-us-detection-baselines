@@ -145,7 +145,7 @@ print(f'Results directory: {out}', flush=True)
 (out / 'status.txt').write_text('INCOMPLETE\n')
 shutil.copy2(runner, out / runner.name)
 for source in (repo / 'training' / 'convert_aul.py', repo / 'requirements.txt',
-               repo / 'reproduce_study' / 'run_gpu_training_benchmark.md'):
+               repo / 'gpu_training_benchmark' / 'run_gpu_training_benchmark.md'):
     if source.is_file():
         shutil.copy2(source, out / source.name)
 for filename in ('nnUNetPlans.json', 'dataset.json', 'dataset_fingerprint.json', 'splits_final.json', 'benchmark_manifest.json'):
