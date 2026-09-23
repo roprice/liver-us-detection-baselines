@@ -3,8 +3,18 @@
 Top-down chronologically, new entries first. First logged on Github 2026-09-21; prior logs reconstructed. Version history here: https://github.com/roprice/liver-us-detection-baselines/commits/main/STUDY_LOG.md
 
 
-## 2026-09-22 
 
+## 2026-09-23 
+
+
+#### Morning
+
+
+
+
+
+
+## 2026-09-22 
 
 #### Evening
 
@@ -13,7 +23,7 @@ After reviewing the literature with respect to data scarcity and data scaling pr
 - power of 2 logarithmic scaling
 
 
-Given that triage-level detection a forgiving metric to begin with, this seems like a logical area to explore and establish baselines for.  Thee secondary benefit to evaluating smaller training sizes: training efficieny, translating to lower energy consumption and lower total costs.
+Given that triage-level detection a forgiving metric to begin with, this seems like a logical area to explore and establish baselines for.  The secondary benefit to evaluating smaller training sizes: training efficieny, translating to lower energy consumption and lower total costs.
 
 Lower than 5 would be 3 (1 of each) and has no proportionality with the source training pool - 370 malignant, 170 benign, and 85. So I start at 5 and go: 5,10,20,40,80,160,320,625(full pool). Subsets were stratified by pathology class (malignant, benign, normal) to preserve the source pool ratios as closely as integer counts allow.
 
@@ -34,7 +44,7 @@ There is a large deviation in proportionality to the actual pool that doesn't ev
 
 It looks as though Verda raised the pricing on the their RTX 6000 Ada from $1.10/h to $1.12/h; still worth it, though, and I'll keep using it.
 
-I've also decided to intervene in the preprocessing to check whether nnUnet  assigned at least one image of each class. for each size of training run. 
+I've also decided to intervene in the preprocessing to check whether nnUnet  assigned at least one image of each class for each size of training run. 
 
 #### Afternoon
 
@@ -89,7 +99,7 @@ Today I will test the saved milestone checkpoints on internal vals data with the
 **Deciding margin**: I'll choose the smallest epoch budget within 0.02 (accross seeds) of the winning epoch budget
 
 
-## 2026-09-21  (reconstructed from 2026-09-20)
+## 2026-09-20  (reconstructed on 2026-09-21)
 
 After further analyzing the results of the pilot epoch budget study and comparing it to similar studies, I continue to delay deciding between a budget of 150 and 300; 750 is also a valid candidate.
 
@@ -102,7 +112,7 @@ I considered several options, including testing two runs at  these endpoints and
 Before doing this, however, I decided to test on vals data I already have from the prior saved checkpoints.
 . 
 
-## 2026-09-21 (reconstructed from 2026-09-19)
+## 2026-09-19 (reconstructed on 2026-09-21 )
 
 I begin study with a preliminary epoch-budget convergence experiment evaluating various internal milestones saved from a 1000-epoch training run: 50, 100, 150, 300, 500, and 750. 
 
@@ -113,15 +123,15 @@ Analyzing predictions from checkpoints at these milestones against a wide variet
 I analyze many types of detection but I also analyzed the most important of them (for this study) against mass size.
 
 
-## 2026-09-21 (reconstructed from 2026-09-18)
+## 2026-09-18 (reconstructed on 2026-09-21)
 
-After conducting research, I choose to prempt the order of experiments and first run a GPU benchmark, using nnU-Net's own benchmarking tool. I evaluated three different Verda.com GPUs and selected the ideal balance of cost and performance. I chose RTX 6000 Ada.
+After conducting research, I choose to prempt the order of experiments and first run a GPU benchmark, using nnU-Net's own` benchmarking tool. I evaluated three different Verda.com GPUs and selected the ideal balance of cost and performance. I chose RTX 6000 Ada.
 
-## 2026-09-21 (reconstructed from 2026-09-17)
+## 2026-09-17 (reconstructed on 2026-09-21)
 
 After two days of research I have confirmed the ideal GPU hosting provider on which to run this study: Verda.com. I also evaluated Scaleway, gpuyard.com, Exoscale, and Spheron. Evaluation critera were cost, variety of specific GPU models, availability of such models, quality of web application UX (subjective judgement), presence and quality of API (subjective judgement), public ethical commitments to sustainailiby, commitments to data privacy and security, and jurisdiction of company headquarters and hosting locations.
 
-## 2026-09-21 (reconstructed from 2026-09-15)
+## 2026-09-15 (reconstructed on 2026-09-21)
 
 Once the experiments concerning AUL are complete, I have chosen to use an external validation database. 
 
