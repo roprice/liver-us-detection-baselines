@@ -1,10 +1,10 @@
 # Setup and training: manually run preliminary milestones test
 
-This document lets you manually reproduce the first test in this study, which saves checkpoints across a sweep of intervals.
+This runbook reproduces the first test in this study, which saves checkpoints across a sweep of intervals.
 
 Early checkpoints reflect a learning rate schedule tuned for 1000 epochs, so they're not comparable to independent shorter training runs. Still, the sweep reveals where Dice gains plateau under this schedule, which is sufficient to set an epoch budget for subsequent experiments.
 
-Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
+Run the commands step-by-step to isolate any environment issue.
 
 ## Fixed conditions
 
@@ -34,14 +34,11 @@ Once you have provisioned the instance and connected to it by SSH, run the follo
 ### 1. Configure prompt (optional)
 
 ```sh
-# More visible prompt with a timestamp so no manual steps are missed
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
 PROMPTEOF
 source ~/.bashrc
 ```
-
-
 
 ### 2. Install system dependencies
 
@@ -58,7 +55,13 @@ git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
 ```
 
-Confirm this checkout contains `experiments/run_milestones_pilot.sh`, the `experiments/custom_trainers/` directory, and `experiments/benchmark_gpu_inference.py` before continuing.
+Confirm the checkout contains these files before continuing:
+
+```sh
+ls experiments/run_milestones_pilot.sh
+ls experiments/custom_trainers/nnUNetTrainerMilestones.py
+ls experiments/benchmark_gpu_inference.py
+```
 
 ### 4. Resolve system Python package conflicts
 
@@ -87,7 +90,6 @@ export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
-# Persist for SSH reconnects
 cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
@@ -123,7 +125,7 @@ cd ../..
 ### 8. Convert to nnU-Net format
 
 ```sh
-python experiments/convert_aul.py \\
+python experiments/convert_aul.py \
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
@@ -137,32 +139,63 @@ ls "$nnUNet_raw/Dataset001_AUL/imagesTr" | wc -l  # expect 625
 ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
 ```
 
-## Training & Predictions
+## Training and predictions
 
 ### 10. Run the preliminary experiment
+
+The runner preprocesses once, trains all three seeds, predicts all nine checkpoints per seed, and runs the per-image GPU inference benchmark. It writes all timing, memory, and configuration evidence to `logs/` (see "Output layout" below).
 
 ```sh
 # Start a persistent session so training survives an SSH disconnect
 tmux new -s training
+```
 
-# Inside tmux, run the runner, teeing output to a file you can tail later
+```sh
+# Inside tmux
 bash experiments/run_milestones_pilot.sh 2>&1 | tee preliminary_milestones_test.log
 ```
 
-Detach from tmux without stopping training with `Ctrl+b` then `d`. Reattach after a reconnect (or from any other SSH session) with `tmux attach -t training`. The runner keeps running inside tmux regardless of the SSH connection.
+Detach without stopping the run with `Ctrl+b`, then `d`. Reattach after reconnecting with:
 
-#### Optionally monitor progress
+```sh
+tmux attach -t training
+```
 
-From a separate SSH session (so these commands do not interfere with the training shell):
+### Optionally monitor progress
+
+From a separate SSH shell:
 
 ```sh
 nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw --format=csv,noheader
 
 tail -f ~/liver-us-detection-baselines/preliminary_milestones_test.log
 ```
-Ctl+C to close `tail`.
 
-The runner preprocesses once, trains all three seeds, predicts from all nine checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
+Use `Ctrl+C` to close `tail`.
+
+## Output layout
+
+```text
+preliminary_milestones_test.log
+logs/
+  training/
+    training_times.csv
+    prediction_times.csv
+    predict_defaults.txt
+    nnUNetPlans.json
+    dataset_fingerprint.json
+    time_preprocess.txt
+    time_gpu_inference_benchmark.txt
+    gpu_monitor_s{SEED}.csv
+    time_train_s{SEED}.txt
+    time_predict_s{SEED}_{label}.txt
+  inference/
+    inference_per_image_cuda.csv
+    inference_summary_cuda.csv
+    inference_settings_cuda.json
+```
+
+The log also records the environment, checkpoint file sizes, and model footprint.
 
 ## Checkpoints saved per seed
 
@@ -185,9 +218,7 @@ Prediction directories use the naming `predictions_milestones_625images_seed{SEE
 ### 11. Verify completion
 
 ```sh
-# Reattach to the tmux session, or tail the log file
-tmux attach -t training
-# or, if detached:
+# The runner prints this final line:
 tail -20 preliminary_milestones_test.log
 # Look for: "Preliminary experiment complete"
 
@@ -212,19 +243,18 @@ ls logs/inference/  # per-image, summary, settings CSVs/JSON
 
 ## Download results
 
-Download the full set of evidence needed to reconstruct and audit the run: the repo, logs, and all three nnU-Net working directories.
+Archive the repository, logs, and nnU-Net working directories before releasing the GPU instance:
 
 ```sh
-# On the GPU server
 cd ~
 tar czf preliminary_milestones_full.tar.gz \
   liver-us-detection-baselines/ \
   nnUNet_raw/ \
   nnUNet_preprocessed/ \
-  nnUNet_results/ \
+  nnUNet_results/
 ```
 
-Then, on your local computer:
+Then, on the local computer:
 
 ```sh
 cd ~/Projects/liver-us-detection-baselines
@@ -235,18 +265,19 @@ tar xzf /tmp/preliminary_milestones_full.tar.gz
 
 ## Manual cleanup
 
-Note: this experiment doesn't place logs into `experiment_logs/<experiment_name>/`, as do subsequent experiments.
+Unlike later experiments, this runner writes to `logs/` rather than `experiment_logs/<experiment_name>/`. Move the outputs so the analysis scripts find them:
 
-To ensure analysis scripts work without path changes, create `experiment_logs/milestones_pilot/` and move the following there:
 ```sh
-    mv logs experiment_logs/milestones_pilot/
-    mv preliminary_milestones_test.log experiment_logs/milestones_pilot/
+mkdir -p experiment_logs/milestones_pilot
+mv logs preliminary_milestones_test.log experiment_logs/milestones_pilot/
 ```
 
-That gives you:
+Resulting layout:
 
-`experiment_logs/milestones_pilot/
+```text
+experiment_logs/milestones_pilot/
   logs/
     training/
     inference/
-  preliminary_milestones_test.log`
+  preliminary_milestones_test.log
+```

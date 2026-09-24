@@ -1,10 +1,10 @@
 # Prediction-only: manually run preliminary milestones validation
 
-This document lets you reproduce the held out validation-side predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
+This runbook reproduces the held-out validation predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
 
-The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting with these checkpoints on the held-out cases purports to provide additional epoch-convergence insight.
+The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting them adds a second surface for judging epoch convergence.
 
-Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
+Run the commands step-by-step to isolate any environment issue.
 
 ## Fixed conditions
 
@@ -45,9 +45,7 @@ find run_milestones_pilot_vals/nnUNet_results -type f -name '*.pth' \
 )
 ```
 
-The ZIP must contain `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at its root, not inside a `run_milestones_pilot_vals/` directory. 
-
-This should create a ZIP file named `run_milestones_pilot_vals.zip` of ~3.4 GB.
+The ZIP must contain `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at its root, not inside a `run_milestones_pilot_vals/` directory. Expect a file of about 3.4 GB.
 
 ## Server setup
 
@@ -56,7 +54,6 @@ All commands run on Verda.com's RTX 6000 Ada.
 ### 1. Configure prompt (optional)
 
 ```sh
-# More visible prompt with a timestamp so no manual steps are missed
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
 PROMPTEOF
@@ -78,7 +75,12 @@ git clone https://github.com/roprice/liver-us-detection-baselines.git
 cd liver-us-detection-baselines
 ```
 
-Confirm this checkout contains `experiments/run_milestones_pilot_vals.sh` and the `experiments/custom_trainers/` directory before continuing.
+Confirm the checkout contains these files before continuing:
+
+```sh
+ls experiments/run_milestones_pilot_vals.sh
+ls experiments/custom_trainers/nnUNetTrainerMilestones.py
+```
 
 ### 4. Resolve system Python package conflicts
 
@@ -107,7 +109,6 @@ export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
-# Persist for SSH reconnects
 cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
@@ -141,24 +142,41 @@ The script builds a temporary directory of validation images (symlinks into `tmp
 ```sh
 # Start a persistent session so predictions survive an SSH disconnect
 tmux new -s val
+```
 
-# Inside tmux, run the runner, teeing output to a file you can tail later
+```sh
+# Inside tmux
 bash experiments/run_milestones_pilot_vals.sh 2>&1 | tee preliminary_milestones_val.log
 ```
 
-Detach from tmux without stopping the run with `Ctrl+b` then `d`. Reattach after a reconnect with `tmux attach -t val`.
+Detach without stopping the run with `Ctrl+b`, then `d`. Reattach after reconnecting with:
 
-#### Optionally monitor progress
+```sh
+tmux attach -t val
+```
 
-From a separate SSH session:
+### Optionally monitor progress
+
+From a separate SSH shell:
 
 ```sh
 tail -f ~/liver-us-detection-baselines/preliminary_milestones_val.log
 ```
 
-Ctl+C to close `tail`.
+Use `Ctrl+C` to close `tail`.
 
-The runner logs an environment block (host, GPU, CPU, RAM, PyTorch, nnU-Net version and SHA, repo SHA), samples GPU utilization/memory/power/temperature once per second per seed, records per-checkpoint prediction timing, checkpoint file sizes, model footprint, and runs a per-image GPU inference benchmark on the val split. All of this is written under `experiment_logs/milestones_pilot_vals/`; there are no manual logging steps to run separately.
+## Output layout
+
+```text
+experiment_logs/milestones_pilot_vals/
+  logs/
+    gpu_monitor_val_s{SEED}.csv
+    val_predictions/
+      val_prediction_times.csv
+      time_predict_val_s{SEED}_{label}.txt
+```
+
+The log also records the environment (host, GPU, PyTorch, nnU-Net version and SHA, repo SHA), checkpoint file sizes, and model footprint.
 
 ## Checkpoints predicted per seed
 
@@ -177,9 +195,7 @@ Prediction directories use the naming `predictions_milestones_val_625images_seed
 ### 10. Verify completion
 
 ```sh
-# Reattach to the tmux session, or tail the log file
-tmux attach -t val
-# or, if detached:
+# The runner prints this final line:
 tail -20 preliminary_milestones_val.log
 # Look for: "Validation predictions complete"
 
@@ -194,7 +210,7 @@ Each prediction directory's PNG count equals the number of fold-0 validation cas
 
 ## Download results
 
-Download the evidence needed to reconstruct and audit the run.
+Archive the logs and predictions before releasing the GPU instance:
 
 ```sh
 cd ~
@@ -204,7 +220,7 @@ tar czf preliminary_milestones_val.tar.gz \
   nnUNet_results/predictions_milestones_val_625images_seed*_*/
 ```
 
-Then, on your local computer:
+Then, on the local computer:
 
 ```sh
 scp root@<server-ip>:~/preliminary_milestones_val.tar.gz /tmp/

@@ -6,6 +6,8 @@ The runner creates all seven reduced datasets from `Dataset001_AUL`; it never mo
 
 Run the commands step-by-step to isolate any environment issue.
 
+Design rationale (subset construction, evaluation checkpoint, split repair) is in [`experiment_design.md`](../experiment_design.md#data-scaling-experiment).
+
 ## Fixed conditions
 
 | Setting | Value |
@@ -20,8 +22,6 @@ Run the commands step-by-step to isolate any environment issue.
 | Trainer | `nnUNetTrainerDataScaling_seed{42,43,44}` |
 | Architecture | PlainConvUNet 2D |
 | Evaluation checkpoint | `checkpoint_final.pth` |
-
-`checkpoint_final.pth` is evaluated for every run. It represents the fixed 150-epoch budget selected by the convergence pilot, rather than allowing a size-specific internal-validation checkpoint to determine when each model is evaluated.
 
 ## Dataset IDs
 
@@ -38,18 +38,9 @@ The full source pool remains `Dataset001_AUL`. The runner creates the following 
 | 320 | 8 | `Dataset008_AUL_320` |
 | 625 | 1 | `Dataset001_AUL` |
 
-The source training pool contains 370 malignant, 170 benign, and 85 mass-negative cases. The runner shuffles these three groups independently once with NumPy seed 42. It first assigns the mass-positive versus mass-negative allocation proportionally, then divides each mass-positive allocation proportionally into malignant and benign cases. Each pool takes a prefix from every shuffled stratum, so every smaller pool is contained in every larger pool. The final 625-case pool is the unmodified source training set.
+## Estimated cost as of September 2026
 
-| Size | Malignant | Benign | Mass-negative |
-|---:|---:|---:|---:|
-| 5 | 3 | 1 | 1 |
-| 10 | 6 | 3 | 1 |
-| 20 | 12 | 5 | 3 |
-| 40 | 24 | 11 | 5 |
-| 80 | 47 | 22 | 11 |
-| 160 | 95 | 43 | 22 |
-| 320 | 189 | 87 | 44 |
-| 625 | 370 | 170 | 85 |
+Roughly 33 GPU-hours of training on Verda's RTX 6000 Ada: 24 models × 150 epochs × ~33 s/epoch (from the [GPU training benchmark](../gpu_training_benchmark/gpu_training_benchmark.md)). That is about $37 on demand at $1.12/hr, or about half on spot. Preprocessing, predictions, and setup add to this. nnU-Net epochs are a fixed 250 iterations, so epoch time does not shrink with pool size.
 
 ## Server setup
 
@@ -123,9 +114,11 @@ ENVEOF
 
 ### 7. Download AUL from Zenodo
 
-Dataset: Annotated Ultrasound Liver (AUL) images. DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660).
+Dataset: Annotated Ultrasound Liver (AUL) images
+DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)
+Citation: Xu, Y., Zheng, B., Liu, X., Wu, T., Ju, J., Wang, S., Lian, Y., Zhang, H., Liang, T., Sang, Y., Jiang, R., Wang, G., Ren, J., & Chen, T. (2022). Annotated Ultrasound Liver images [Data set]. Zenodo. https://doi.org/10.5281/zenodo.7272660
 
-This fixed versioned record has the following expected archive checksums:
+This is a versioned Zenodo record, not the concept DOI (`10.5281/zenodo.7272659`). `zenodo_get 7272660` always resolves to the same archive files, even if new versions are published. Expected checksums:
 
 | File | MD5 |
 |---|---|
@@ -148,7 +141,7 @@ cd ../..
 ### 8. Convert AUL to nnU-Net format
 
 ```sh
-python experiments/convert_aul.py \\
+python experiments/convert_aul.py \
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
@@ -223,7 +216,15 @@ experiment_logs/data_scaling/
     time_predict_size{SIZE}_s{SEED}_final.txt
 ```
 
-The runner writes the generated raw datasets to `nnUNet_raw/Dataset002_AUL_005` through `nnUNet_raw/Dataset008_AUL_320`. It writes predictions to `nnUNet_results/predictions_data_scaling_{SIZE}images_seed{SEED}_final/`.
+The runner writes the generated raw datasets to `nnUNet_raw/Dataset002_AUL_005` through `nnUNet_raw/Dataset008_AUL_320`.
+
+## Checkpoints predicted per model
+
+| Checkpoint file | Prediction directory |
+|---|---|
+| `checkpoint_final.pth` | `$nnUNet_results/predictions_data_scaling_{SIZE}images_seed{SEED}_final/` |
+
+One directory per size and seed: 24 in total, e.g. `predictions_data_scaling_20images_seed43_final`. Each model's effective training/validation split is saved in its `fold_0/data_scaling_split.json`.
 
 The custom trainer logs model parameter counts, post-initialization GPU memory, and final current/peak GPU memory in each nnU-Net `training_log_*.txt` under its result folder.
 
@@ -236,9 +237,9 @@ The runner is safe to re-run after an interruption:
 - A training run with `checkpoint_final.pth` already present is skipped; incomplete training is resumed through nnU-Net's `--c` option.
 - Complete 110-mask prediction directories and completed inference benchmark summaries are skipped. Incomplete prediction directories are removed and regenerated.
 
-Checkpoints created before the all-pathologies split policy must not be resumed or reused: the trainer and runner reject them. Before restarting an old experiment, archive its data-scaling model folders, predictions, inference results, and run metrics outside the active result/log locations. Keep the raw datasets, preprocessed data, original `splits_final.json` files, and preprocessing completion markers. New runs then train from scratch with the repaired splits without repeating preprocessing.
+If subset creation is interrupted, delete only the partial generated directory (`Dataset002_AUL_005` through `Dataset008_AUL_320`) and rerun. Never delete `Dataset001_AUL`.
 
-If subset creation is interrupted and leaves a partial `Dataset002_AUL_005` through `Dataset008_AUL_320` directory, delete only that partial generated directory, then rerun the script. The source `Dataset001_AUL` must not be deleted.
+Checkpoints from before the split-repair policy are rejected. To restart such a run, move its model folders, predictions, inference results, and run metrics out of the active result and log locations. Keep the raw datasets, preprocessed data, `splits_final.json` files, and preprocessing markers so preprocessing is not repeated.
 
 ## Verification
 
@@ -263,21 +264,17 @@ for SIZE in 5 10 20 40 80 160 320 625; do
   COUNT=$(find "$nnUNet_results" -maxdepth 1 -type d \
     -name "predictions_data_scaling_${SIZE}images_seed*_final" | wc -l)
   echo "${SIZE}: ${COUNT} prediction directories"  # expect 3
- done
+done
 
 # Each completed prediction directory contains the unchanged 110-image test set
 for DIR in "$nnUNet_results"/predictions_data_scaling_*images_seed*_final; do
   COUNT=$(find "$DIR" -maxdepth 1 -type f -name '*.png' | wc -l)
   echo "${DIR}: ${COUNT} masks"  # expect 110
- done
+done
 
 # One inference benchmark summary per data size
 find experiment_logs/data_scaling/logs/inference -name inference_summary_cuda.csv | wc -l  # expect 8
 ```
-
-The data-pool sizes describe the raw datasets, not the number of gradient-training images. The trainer starts with nnU-Net's fold-0 split and checks every pool size for malignant, benign, and normal training examples. If a pathology is absent, it swaps one validation case of that pathology with a training case from a category containing at least two training cases. Missing categories are processed in malignant/benign/normal order, and candidate cases are chosen by sorted case ID, independently of the initialization seed. Splits already containing all three training categories are unchanged; partition sizes and disjointness are preserved. This guarantees representation, not proportionality within the training partition or nested training partitions across sizes.
-
-For the current five-case pool, the repaired split contains two malignant, one benign, and one normal training image, with one malignant validation image. All three initialization seeds use the same effective split. The original `splits_final.json` remains unchanged; the authoritative effective assignments and counts are saved in each model's `fold_0/data_scaling_split.json`. The test set remains completely separate and is never used for preprocessing decisions, gradient updates, checkpoint selection, or subset construction.
 
 ## Download results
 

@@ -4,6 +4,8 @@ This planned experiment compares nnU-Net's ResEnc M preset with the size-matched
 
 The comparison size is **TBD pending analysis of the data-scaling experiment**. The runner currently defaults to 625 cases as a placeholder. Set `ABLATION_DATASET_SIZE` explicitly when the final size is selected.
 
+Design rationale (why ResEnc M, preset effects, trainer behavior, comparison checklist) is in [`experiment_design.md`](../experiment_design.md#resenc-architecture-ablation).
+
 ## Fixed and pending conditions
 
 | Setting | Value |
@@ -22,11 +24,9 @@ The comparison size is **TBD pending analysis of the data-scaling experiment**. 
 | Evaluation checkpoint | `checkpoint_final.pth` |
 | nnU-Net | 2.8.1 |
 
-ResEnc M is used because nnU-Net describes it as the residual-encoder preset with a GPU budget closest to the standard PlainConvUNet. ResEnc L and XL would introduce substantially larger compute and memory budgets.
+## Estimated cost as of September 2026
 
-This evaluates the ResEnc M preset rather than a mathematically isolated one-variable network substitution. Its planner may choose a different patch size or batch size from `nnUNetPlans`. Preserve both plans files and include those differences when interpreting the comparison.
-
-The custom trainer inherits the data-scaling trainer, including its 150-epoch budget, seed handling, pathology-preserving fold repair, checkpoint policy, and memory/parameter instrumentation. It additionally rejects any initialized network that is not a `ResidualEncoderUNet`.
+Not yet measured. The PlainConvUNet equivalent is about 4 GPU-hours of training for three seeds on Verda's RTX 6000 Ada (150 epochs × ~33 s/epoch, from the [GPU training benchmark](../gpu_training_benchmark/gpu_training_benchmark.md)). ResEnc M will likely take somewhat longer per epoch. Update this section after the first run.
 
 ## Dataset selection
 
@@ -43,7 +43,7 @@ The runner maps `ABLATION_DATASET_SIZE` to the same datasets used by the data-sc
 | 320 | `Dataset008_AUL_320` |
 | 625 | `Dataset001_AUL` |
 
-The ablation runner never creates or changes a dataset. Restore the selected raw dataset and `experiment_logs/data_scaling/subsets_manifest.json` from the completed data-scaling experiment. The runner compares the exact training case IDs, source `dataset.json` hash, and held-out test filenames against that evidence before planning.
+The ablation runner never creates or changes a dataset. The source dataset is AUL ([10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)); see the data-scaling runbook for download, citation, and checksums. Restore the selected raw dataset and `experiment_logs/data_scaling/subsets_manifest.json` from the completed data-scaling experiment. The runner compares the exact training case IDs, source `dataset.json` hash, and held-out test filenames against that evidence before planning.
 
 ## Fresh server setup
 
@@ -195,13 +195,13 @@ $nnUNet_results/Dataset.../
   nnUNetTrainerResEncAblation_seed{SEED}__nnUNetResEncUNetMPlans__2d/fold_0/
 ```
 
-Predictions are written to:
+## Checkpoints predicted per seed
 
-```text
-$nnUNet_results/predictions_resenc_ablation_{SIZE}images_seed{SEED}_final/
-```
+| Checkpoint file | Prediction directory |
+|---|---|
+| `checkpoint_final.pth` | `$nnUNet_results/predictions_resenc_ablation_{SIZE}images_seed{SEED}_final/` |
 
-These names cannot collide with PlainConvUNet data-scaling outputs.
+Three directories in total, e.g. `predictions_resenc_ablation_625images_seed42_final`. These names cannot collide with PlainConvUNet data-scaling outputs.
 
 ## Resume behavior
 
@@ -238,8 +238,6 @@ find experiment_logs/resenc_ablation/logs/inference \
 # Expect 1
 ```
 
-Before comparison, verify that the selected PlainConvUNet data-scaling run used the same dataset name, fold, seeds, epoch budget, held-out test images, and `checkpoint_final.pth`. Compare the archived `nnUNetPlans.json` and `nnUNetResEncUNetMPlans.json` when discussing architecture, patch-size, or batch-size effects.
-
 ## Download results
 
 ```sh
@@ -249,4 +247,11 @@ tar czf resenc_ablation_full.tar.gz \
   nnUNet_raw/ \
   nnUNet_preprocessed/ \
   nnUNet_results/
+```
+
+Then, on the local computer:
+
+```sh
+scp root@<server-ip>:~/resenc_ablation_full.tar.gz /tmp/
+tar xzf /tmp/resenc_ablation_full.tar.gz
 ```
