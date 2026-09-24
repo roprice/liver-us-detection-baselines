@@ -18,6 +18,7 @@ file. Each prediction directory contributes one row per test image.
 
 import csv
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -75,6 +76,7 @@ FIELDNAMES = (
     "experiment_name",
     "evaluation_split",
     "configuration_id",
+    "training_set_size",
     "seed",
     "epoch",
     "checkpoint",
@@ -301,6 +303,14 @@ def load_validation_fold_0_cases():
 
 def parse_prediction_directory(directory_name):
     """Return metadata parsed from an approved prediction-directory convention."""
+    scaling_match = re.fullmatch(
+        r"predictions_data_scaling_([1-9][0-9]*)images_seed([0-9]+)_final",
+        directory_name,
+    )
+    if scaling_match:
+        training_set_size, seed = map(int, scaling_match.groups())
+        return "data_scaling", "test", training_set_size, seed, 150, "final", "PlainConvUNet"
+
     parts = directory_name.split("_")
     if directory_name.startswith("predictions_milestones_625images_seed"):
         experiment_name = "milestones_pilot"
@@ -330,7 +340,7 @@ def parse_prediction_directory(directory_name):
         epoch = BEST_EPOCHS[(checkpoint, seed)]
     else:
         epoch = CHECKPOINT_EPOCHS[checkpoint]
-    return experiment_name, evaluation_split, seed, epoch, checkpoint, "PlainConvUNet"
+    return experiment_name, evaluation_split, 625, seed, epoch, checkpoint, "PlainConvUNet"
 
 
 def discover_configurations():
@@ -340,16 +350,21 @@ def discover_configurations():
         raise InputValidationError(
             f"Missing predictions root: {relative_path(PREDICTIONS_ROOT)}"
         )
-    for directory in sorted(PREDICTIONS_ROOT.rglob("predictions_milestones_*")):
+    directories = list(PREDICTIONS_ROOT.rglob("predictions_milestones_*"))
+    directories.extend(
+        PREDICTIONS_ROOT.glob("predictions_data_scaling_*images_seed*_final")
+    )
+    for directory in sorted(directories):
         if not directory.is_dir():
             continue
-        experiment_name, evaluation_split, seed, epoch, checkpoint, encoder = (
+        experiment_name, evaluation_split, training_set_size, seed, epoch, checkpoint, encoder = (
             parse_prediction_directory(directory.name)
         )
         configurations.append({
             "experiment_name": experiment_name,
             "evaluation_split": evaluation_split,
             "configuration_id": directory.name,
+            "training_set_size": training_set_size,
             "seed": seed,
             "epoch": epoch,
             "checkpoint": checkpoint,
@@ -446,6 +461,7 @@ def evaluate_case(config, case):
         "experiment_name": config["experiment_name"],
         "evaluation_split": config["evaluation_split"],
         "configuration_id": config["configuration_id"],
+        "training_set_size": config["training_set_size"],
         "seed": config["seed"],
         "epoch": config["epoch"],
         "checkpoint": config["checkpoint"],

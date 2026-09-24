@@ -48,6 +48,7 @@ STRING_FIELDS = {
     "outcome_category",
 }
 INT_FIELDS = {
+    "training_set_size",
     "seed",
     "epoch",
     "image_height_px",
@@ -97,6 +98,7 @@ EXPECTED_FIELDS = (
     "experiment_name",
     "evaluation_split",
     "configuration_id",
+    "training_set_size",
     "seed",
     "epoch",
     "checkpoint",
@@ -144,6 +146,7 @@ class PredictionRow:
     experiment_name: str
     evaluation_split: str
     configuration_id: str
+    training_set_size: int
     seed: int
     epoch: Optional[int]
     checkpoint: str
