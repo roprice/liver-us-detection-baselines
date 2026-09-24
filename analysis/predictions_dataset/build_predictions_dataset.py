@@ -72,6 +72,20 @@ BEST_EPOCHS = {
     ("best_mass", 44): 999,
 }
 
+# Epoch stored in each data-scaling run's ``checkpoint_best.pth`` (the epoch of
+# the final EMA pseudo-Dice improvement, saved 1-based by nnU-Net), recovered
+# from each run's training log and keyed by (training_set_size, seed).
+DATA_SCALING_BEST_EPOCHS = {
+    (5, 42): 51, (5, 43): 1, (5, 44): 11,
+    (10, 42): 147, (10, 43): 73, (10, 44): 52,
+    (20, 42): 44, (20, 43): 29, (20, 44): 75,
+    (40, 42): 53, (40, 43): 50, (40, 44): 63,
+    (80, 42): 150, (80, 43): 147, (80, 44): 150,
+    (160, 42): 142, (160, 43): 127, (160, 44): 150,
+    (320, 42): 148, (320, 43): 129, (320, 44): 150,
+    (625, 42): 141, (625, 43): 149, (625, 44): 150,
+}
+
 FIELDNAMES = (
     "experiment_name",
     "evaluation_split",
@@ -304,12 +318,22 @@ def load_validation_fold_0_cases():
 def parse_prediction_directory(directory_name):
     """Return metadata parsed from an approved prediction-directory convention."""
     scaling_match = re.fullmatch(
-        r"predictions_data_scaling_([1-9][0-9]*)images_seed([0-9]+)_final",
+        r"predictions_data_scaling_([1-9][0-9]*)images_seed([0-9]+)_(final|best)",
         directory_name,
     )
     if scaling_match:
-        training_set_size, seed = map(int, scaling_match.groups())
-        return "data_scaling", "test", training_set_size, seed, 150, "final", "PlainConvUNet"
+        training_set_size, seed = map(int, scaling_match.group(1, 2))
+        checkpoint = scaling_match.group(3)
+        if checkpoint == "final":
+            epoch = 150
+        else:
+            key = (training_set_size, seed)
+            if key not in DATA_SCALING_BEST_EPOCHS:
+                raise InputValidationError(
+                    f"No recovered best epoch for {directory_name}"
+                )
+            epoch = DATA_SCALING_BEST_EPOCHS[key]
+        return "data_scaling", "test", training_set_size, seed, epoch, checkpoint, "PlainConvUNet"
 
     parts = directory_name.split("_")
     if directory_name.startswith("predictions_milestones_625images_seed"):
@@ -353,6 +377,9 @@ def discover_configurations():
     directories = list(PREDICTIONS_ROOT.rglob("predictions_milestones_*"))
     directories.extend(
         PREDICTIONS_ROOT.glob("predictions_data_scaling_*images_seed*_final")
+    )
+    directories.extend(
+        PREDICTIONS_ROOT.glob("predictions_data_scaling_*images_seed4*_best")
     )
     for directory in sorted(directories):
         if not directory.is_dir():
