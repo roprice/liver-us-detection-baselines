@@ -4,7 +4,6 @@ This document lets you manually reproduce the first test in this study, which sa
 
 Early checkpoints reflect a learning rate schedule tuned for 1000 epochs, so they're not comparable to independent shorter training runs. Still, the sweep reveals where Dice gains plateau under this schedule, which is sufficient to set an epoch budget for subsequent experiments.
 
-Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
 
 ## Fixed conditions
 
@@ -23,18 +22,17 @@ Each seed saves multiple milestone checkpoints (epochs 50 through 1000), a best-
 
 ## Estimated cost as of September 2026
 
-On Verda.com's RTX PRO 6000 $0.95/hr spot pricing, roughly $10 and 11 GPU-hours for all three seeds including predictions. That's mostly training time but factors in setup and download and deletion times.
+On Verda.com's RTX 6000 Ada $1.10/hr pricing, roughly $10 to 15 GPU-hours for all three seeds including predictions. That's mostly training time but factors in setup and download and deletion times.
 
 ## Server setup
 
-All commands run on a fresh Verda GPU instance (NVIDIA RTX PRO 6000, 96 GiB VRAM) running Ubuntu. 
+All commands run on a fresh Verda GPU instance (RTX 6000 Ada, Ubuntu). 
 
 Once you have provisioned the instance and connected to it by SSH, run the following commands from a single shell. During the training in step 10, you can open a new shell if you wish to monitor progress; that won't be logged.
 
 ### 1. Configure prompt (optional)
 
 ```sh
-# More visible prompt with a timestamp so no manual steps are missed
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
 PROMPTEOF
@@ -87,7 +85,6 @@ export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
-# Persist for SSH reconnects
 cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
@@ -123,7 +120,7 @@ cd ../..
 ### 8. Convert to nnU-Net format
 
 ```sh
-python experiments/convert_aul.py \\
+python experiments/convert_aul.py \
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
@@ -142,10 +139,8 @@ ls "$nnUNet_raw/Dataset001_AUL/imagesTs" | wc -l  # expect 110
 ### 10. Run the preliminary experiment
 
 ```sh
-# Start a persistent session so training survives an SSH disconnect
 tmux new -s training
 
-# Inside tmux, run the runner, teeing output to a file you can tail later
 bash experiments/run_milestones_pilot.sh 2>&1 | tee preliminary_milestones_test.log
 ```
 
@@ -160,9 +155,31 @@ nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw --format=csv,nohea
 
 tail -f ~/liver-us-detection-baselines/preliminary_milestones_test.log
 ```
-Ctl+C to close `tail`.
+Use `Ctrl+C` to close `tail`.
 
-The runner preprocesses once, trains all three seeds, predicts from all nine checkpoints per seed, and then runs the per-image GPU inference benchmark. It captures GPU samples (`nvidia-smi`), process memory and CPU time (`/usr/bin/time -v`), per-checkpoint prediction timing, checkpoint file sizes, model footprint, and nnU-Net auto-configuration. All of this is written to `logs/`; there are no manual logging steps to run separately.
+## Output layout
+
+```text
+preliminary_milestones_test.log
+logs/
+  training/
+    training_times.csv
+    prediction_times.csv
+    nnUNetPlans.json
+    dataset_fingerprint.json
+    predict_defaults.txt
+    time_preprocess.txt
+    time_gpu_inference_benchmark.txt
+    gpu_monitor_s{42,43,44}.csv
+    time_train_s{42,43,44}.txt
+    time_predict_s{SEED}_{LABEL}.txt
+  inference/
+    inference_per_image_cuda.csv
+    inference_summary_cuda.csv
+    inference_settings_cuda.json
+```
+
+Predictions are written to `$nnUNet_results/predictions_milestones_625images_seed{SEED}_{LABEL}/`. Model parameters and GPU memory are recorded in each nnU-Net `training_log_*.txt`.
 
 ## Checkpoints saved per seed
 
@@ -221,7 +238,7 @@ tar czf preliminary_milestones_full.tar.gz \
   liver-us-detection-baselines/ \
   nnUNet_raw/ \
   nnUNet_preprocessed/ \
-  nnUNet_results/ \
+  nnUNet_results/
 ```
 
 Then, on your local computer:

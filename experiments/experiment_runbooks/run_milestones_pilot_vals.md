@@ -2,9 +2,7 @@
 
 This document lets you reproduce the held out validation-side predictions for the preliminary milestones experiment: predicting the 150, 300, and 750 epoch checkpoints on the validation split for each seeded run.
 
-The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predicting with these checkpoints on the held-out cases purports to provide additional epoch-convergence insight.
-
-Because your environment may deviate in unpredictable ways, run these commands step-by-step to pinpoint and resolve issues if they come up.
+The validation images are the fold-0 split from `splits_final.json`. They were held out from gradient updates during training; nnU-Net used them only for pseudo-Dice logging and best-checkpoint selection. Predictions from these checkpoints provide additional epoch-convergence evidence.
 
 ## Fixed conditions
 
@@ -17,6 +15,10 @@ Because your environment may deviate in unpredictable ways, run these commands s
 | Initialization seeds | 42, 43, 44 |
 | Trainer | `nnUNetTrainerMilestones_seed{42,43,44}` |
 | Architecture | PlainConvUNet 2D |
+
+## Estimated cost as of September 2026
+
+On Verda.com's RTX 6000 Ada $1.10/hr pricing, roughly $1-2 GPU-hours for all three seeds including predictions. That's mostly training time but factors in setup and download and deletion times.
 
 ## Prerequisites
 
@@ -56,7 +58,6 @@ All commands run on Verda.com's RTX 6000 Ada.
 ### 1. Configure prompt (optional)
 
 ```sh
-# More visible prompt with a timestamp so no manual steps are missed
 cat >> ~/.bashrc << 'PROMPTEOF'
 PS1='\[\e[38;5;208m\]\u@\h:\w \t \[\e[0m\]\$ '
 PROMPTEOF
@@ -107,7 +108,6 @@ export nnUNet_extTrainer="$HOME/liver-us-detection-baselines/experiments/custom_
 
 mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
 
-# Persist for SSH reconnects
 cat >> ~/.bashrc << 'ENVEOF'
 export nnUNet_raw="$HOME/nnUNet_raw"
 export nnUNet_preprocessed="$HOME/nnUNet_preprocessed"
@@ -139,10 +139,8 @@ Confirm it lists `nnUNet_raw/`, `nnUNet_preprocessed/`, and `nnUNet_results/` at
 The script builds a temporary directory of validation images (symlinks into `tmp/val_images_fold0/`), then predicts the three milestone checkpoints (150, 300, and 750) for each seed.
 
 ```sh
-# Start a persistent session so predictions survive an SSH disconnect
 tmux new -s val
 
-# Inside tmux, run the runner, teeing output to a file you can tail later
 bash experiments/run_milestones_pilot_vals.sh 2>&1 | tee preliminary_milestones_val.log
 ```
 
@@ -156,9 +154,21 @@ From a separate SSH session:
 tail -f ~/liver-us-detection-baselines/preliminary_milestones_val.log
 ```
 
-Ctl+C to close `tail`.
+Use `Ctrl+C` to close `tail`.
 
-The runner logs an environment block (host, GPU, CPU, RAM, PyTorch, nnU-Net version and SHA, repo SHA), samples GPU utilization/memory/power/temperature once per second per seed, records per-checkpoint prediction timing, checkpoint file sizes, model footprint, and runs a per-image GPU inference benchmark on the val split. All of this is written under `experiment_logs/milestones_pilot_vals/`; there are no manual logging steps to run separately.
+## Output layout
+
+```text
+preliminary_milestones_val.log
+experiment_logs/milestones_pilot_vals/
+  logs/
+    gpu_monitor_val_s{42,43,44}.csv
+    val_predictions/
+      val_prediction_times.csv
+      time_predict_val_s{SEED}_{LABEL}.txt
+```
+
+Predictions are written to `$nnUNet_results/predictions_milestones_val_625images_seed{SEED}_{LABEL}/`.
 
 ## Checkpoints predicted per seed
 

@@ -22,9 +22,9 @@ The comparison size is **TBD pending analysis of the data-scaling experiment**. 
 | Evaluation checkpoint | `checkpoint_final.pth` |
 | nnU-Net | 2.8.1 |
 
-ResEnc M is used because nnU-Net describes it as the residual-encoder preset with a GPU budget closest to the standard PlainConvUNet. ResEnc L and XL would introduce substantially larger compute and memory budgets.
+## Estimated cost as of September 2026
 
-This evaluates the ResEnc M preset rather than a mathematically isolated one-variable network substitution. Its planner may choose a different patch size or batch size from `nnUNetPlans`. Preserve both plans files and include those differences when interpreting the comparison.
+On Verda.com's RTX 6000 Ada $1.10/hr pricing, roughly $10-15 GPU-hours for all three seeds including predictions. That's mostly training time but factors in setup and download and deletion times.
 
 The custom trainer inherits the data-scaling trainer, including its 150-epoch budget, seed handling, pathology-preserving fold repair, checkpoint policy, and memory/parameter instrumentation. It additionally rejects any initialized network that is not a `ResidualEncoderUNet`.
 

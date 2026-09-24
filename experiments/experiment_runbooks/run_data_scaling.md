@@ -21,7 +21,9 @@ Run the commands step-by-step to isolate any environment issue.
 | Architecture | PlainConvUNet 2D |
 | Evaluation checkpoint | `checkpoint_final.pth` |
 
-`checkpoint_final.pth` is evaluated for every run. It represents the fixed 150-epoch budget selected by the convergence pilot, rather than allowing a size-specific internal-validation checkpoint to determine when each model is evaluated.
+## Estimated cost as of September 2026
+
+On Verda.com's RTX 6000 Ada $1.10/hr pricing, roughly $25-30 GPU-hours for all three seeds including predictions. That's mostly training time but factors in setup and download and deletion times.
 
 ## Dataset IDs
 
@@ -53,7 +55,7 @@ The source training pool contains 370 malignant, 170 benign, and 85 mass-negativ
 
 ## Server setup
 
-All commands below assume a fresh Ubuntu GPU instance. The prior pilot used Verda's RTX PRO 6000 configuration.
+All commands below assume a fresh Ubuntu GPU instance. 
 
 ### 1. Configure prompt (optional)
 
@@ -123,9 +125,11 @@ ENVEOF
 
 ### 7. Download AUL from Zenodo
 
-Dataset: Annotated Ultrasound Liver (AUL) images. DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660).
+Dataset: Annotated Ultrasound Liver (AUL) images
+DOI: [10.5281/zenodo.7272660](https://doi.org/10.5281/zenodo.7272660)
+Citation: Xu, Y., Zheng, B., Liu, X., Wu, T., Ju, J., Wang, S., Lian, Y., Zhang, H., Liang, T., Sang, Y., Jiang, R., Wang, G., Ren, J., & Chen, T. (2022). Annotated Ultrasound Liver images [Data set]. Zenodo. https://doi.org/10.5281/zenodo.7272660
 
-This fixed versioned record has the following expected archive checksums:
+This is a versioned Zenodo record, not the floating concept DOI (`10.5281/zenodo.7272659`). It has the following expected archive checksums:
 
 | File | MD5 |
 |---|---|
@@ -148,7 +152,7 @@ cd ../..
 ### 8. Convert AUL to nnU-Net format
 
 ```sh
-python experiments/convert_aul.py \\
+python experiments/convert_aul.py \
   --raw-data-dir data/source/AUL \
   --output-dir "$nnUNet_raw/Dataset001_AUL"
 ```
@@ -236,7 +240,6 @@ The runner is safe to re-run after an interruption:
 - A training run with `checkpoint_final.pth` already present is skipped; incomplete training is resumed through nnU-Net's `--c` option.
 - Complete 110-mask prediction directories and completed inference benchmark summaries are skipped. Incomplete prediction directories are removed and regenerated.
 
-Checkpoints created before the all-pathologies split policy must not be resumed or reused: the trainer and runner reject them. Before restarting an old experiment, archive its data-scaling model folders, predictions, inference results, and run metrics outside the active result/log locations. Keep the raw datasets, preprocessed data, original `splits_final.json` files, and preprocessing completion markers. New runs then train from scratch with the repaired splits without repeating preprocessing.
 
 If subset creation is interrupted and leaves a partial `Dataset002_AUL_005` through `Dataset008_AUL_320` directory, delete only that partial generated directory, then rerun the script. The source `Dataset001_AUL` must not be deleted.
 
@@ -275,9 +278,6 @@ for DIR in "$nnUNet_results"/predictions_data_scaling_*images_seed*_final; do
 find experiment_logs/data_scaling/logs/inference -name inference_summary_cuda.csv | wc -l  # expect 8
 ```
 
-The data-pool sizes describe the raw datasets, not the number of gradient-training images. The trainer starts with nnU-Net's fold-0 split and checks every pool size for malignant, benign, and normal training examples. If a pathology is absent, it swaps one validation case of that pathology with a training case from a category containing at least two training cases. Missing categories are processed in malignant/benign/normal order, and candidate cases are chosen by sorted case ID, independently of the initialization seed. Splits already containing all three training categories are unchanged; partition sizes and disjointness are preserved. This guarantees representation, not proportionality within the training partition or nested training partitions across sizes.
-
-For the current five-case pool, the repaired split contains two malignant, one benign, and one normal training image, with one malignant validation image. All three initialization seeds use the same effective split. The original `splits_final.json` remains unchanged; the authoritative effective assignments and counts are saved in each model's `fold_0/data_scaling_split.json`. The test set remains completely separate and is never used for preprocessing decisions, gradient updates, checkpoint selection, or subset construction.
 
 ## Download results
 
