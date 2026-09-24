@@ -1,0 +1,23 @@
+{
+  "nnunet_version": "unknown",
+  "torch_version": "2.14.0+cu130",
+  "dataset_name": "Dataset004_AUL_020",
+  "dataset_id": "4",
+  "trainer_prefix": "nnUNetTrainerDataScaling_seed",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "plans": "nnUNetPlans",
+  "configuration": "2d",
+  "fold": 0,
+  "checkpoint": "checkpoint_final.pth",
+  "step_size": 0.5,
+  "use_mirroring": true,
+  "use_gaussian": true,
+  "warmup_images": 3,
+  "device": "cuda",
+  "test_image_count": 110,
+  "notes": "inference_seconds covers only predict_logits_from_preprocessed_data (the sliding-window forward pass), bracketed with torch.cuda.synchronize() when device=cuda. Preprocessing (file I/O, resampling, normalization) and export are excluded. Model loading time is measured separately and excludes the one-time host-to-device weight transfer, which occurs during the discarded warm-up pass. To replicate on another device, rerun this script with the same --checkpoint, --dataset-name, --seeds, --step-size, and --disable-mirroring settings recorded here, changing only --device and --output-dir."
+}

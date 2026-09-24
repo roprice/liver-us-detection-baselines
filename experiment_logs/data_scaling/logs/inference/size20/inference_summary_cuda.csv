@@ -1,0 +1,5 @@
+seed,checkpoint,device,model_load_seconds,n_images,mean_seconds,median_seconds,stdev_seconds,p25_seconds,p75_seconds,min_seconds,max_seconds
+42,checkpoint_final.pth,cuda,1.896312,110,0.097801,0.086589,0.014529,0.084230,0.110772,0.083507,0.134801
+43,checkpoint_final.pth,cuda,0.903343,110,0.098904,0.086970,0.014330,0.086426,0.114706,0.083547,0.129300
+44,checkpoint_final.pth,cuda,0.719524,110,0.097509,0.087024,0.013206,0.084805,0.111350,0.083766,0.121259
+all,checkpoint_final.pth,cuda,,330,0.098071,0.086922,0.014004,0.084995,0.111358,0.083507,0.134801
