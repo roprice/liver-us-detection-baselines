@@ -7,6 +7,22 @@ Top-down chronologically, new entries first. First logged on Github 2026-09-21; 
 ## 2026-09-23 
 
 
+Before doing analysis of the data scaling experiment predictions, I re-rean the noise floor study to make sure the relative point I'd selected previously was still valid - it was; 0.3.
+
+I also updated the false positive calculations to be both more rigorous and more precisely calibrated to the various evaluation metrics I'm reporting in the study. For that includes:
+
+triage-level detection
+overlap-based detection with IoU>0.0
+overlap-based detection with IoU>0.2
+overlap-based detection with IoU>0.5
+centroid-based detection with deq 0.25
+centroid-based detection with deq 0.5
+centroid-based detection with deq 1.0
+segmentation
+
+I may narrow this down as I move towards writing the study up in a paper; I may choose to include segmentation, triage, and overlap 0.2, and one of the centroid detection metrics.
+
+
 #### Morning
 
 
