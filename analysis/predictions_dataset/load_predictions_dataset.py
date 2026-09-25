@@ -60,6 +60,14 @@ INT_FIELDS = {
     "raw_union_area_px",
     "retained_intersection_area_px",
     "retained_union_area_px",
+    "retained_component_count",
+    "unmatched_retained_component_count",
+    "overlap_detection_iou_00_fp_count",
+    "overlap_detection_iou_02_fp_count",
+    "overlap_detection_iou_05_fp_count",
+    "centroid_detection_deq_025_fp_count",
+    "centroid_detection_deq_050_fp_count",
+    "centroid_detection_deq_100_fp_count",
 }
 FLOAT_FIELDS = {
     "mass_dice",
@@ -123,6 +131,14 @@ EXPECTED_FIELDS = (
     "liver_dice",
     "mass_iou",
     "max_retained_component_iou",
+    "retained_component_count",
+    "unmatched_retained_component_count",
+    "overlap_detection_iou_00_fp_count",
+    "overlap_detection_iou_02_fp_count",
+    "overlap_detection_iou_05_fp_count",
+    "centroid_detection_deq_025_fp_count",
+    "centroid_detection_deq_050_fp_count",
+    "centroid_detection_deq_100_fp_count",
     "triage_detection_flag",
     "overlap_detection_iou_00_flag",
     "overlap_detection_iou_02_flag",
@@ -171,6 +187,14 @@ class PredictionRow:
     liver_dice: Optional[float]
     mass_iou: Optional[float]
     max_retained_component_iou: Optional[float]
+    retained_component_count: int
+    unmatched_retained_component_count: int
+    overlap_detection_iou_00_fp_count: int
+    overlap_detection_iou_02_fp_count: int
+    overlap_detection_iou_05_fp_count: int
+    centroid_detection_deq_025_fp_count: int
+    centroid_detection_deq_050_fp_count: int
+    centroid_detection_deq_100_fp_count: int
     triage_detection_flag: bool
     overlap_detection_iou_00_flag: Optional[bool]
     overlap_detection_iou_02_flag: Optional[bool]
