@@ -1,7 +1,7 @@
 """Build the canonical per-image prediction dataset from saved mask predictions.
 
-Run from the repository root:
-    python3 analysis/predictions_dataset/build_predictions_dataset.py
+Run from the repository root (as a module):
+    python3 -m analysis.predictions_dataset.build_predictions_dataset
 
 Output:
     analysis/predictions_dataset/predictions_dataset.csv
@@ -115,6 +115,14 @@ FIELDNAMES = (
     "liver_dice",
     "mass_iou",
     "max_retained_component_iou",
+    "retained_component_count",
+    "unmatched_retained_component_count",
+    "overlap_detection_iou_00_fp_count",
+    "overlap_detection_iou_02_fp_count",
+    "overlap_detection_iou_05_fp_count",
+    "centroid_detection_deq_025_fp_count",
+    "centroid_detection_deq_050_fp_count",
+    "centroid_detection_deq_100_fp_count",
     "triage_detection_flag",
     "overlap_detection_iou_00_flag",
     "overlap_detection_iou_02_flag",
@@ -190,6 +198,18 @@ def max_component_iou(prediction, reference):
         union = int(np.logical_or(component_mask, reference).sum())
         ious.append(intersection / union if union else 0.0)
     return max(ious, default=0.0)
+
+
+def retained_component_counts(retained_prediction, reference):
+    """Return (retained components, retained components with no pixel overlap
+    with the reference mass). On normal images every component is unmatched."""
+    components = label(retained_prediction, connectivity=CONNECTIVITY)
+    total = int(components.max())
+    unmatched = sum(
+        1 for component in range(1, total + 1)
+        if not np.logical_and(components == component, reference).any()
+    )
+    return total, unmatched
 
 
 def centroid_detection(reference, retained_prediction, diameter_factor):
@@ -445,6 +465,9 @@ def evaluate_case(config, case):
     retained_intersection = int(np.logical_and(retained_prediction, ground_truth).sum())
     retained_union = int(np.logical_or(retained_prediction, ground_truth).sum())
     triage = bool(retained_prediction.any())
+    retained_components, unmatched_retained_components = retained_component_counts(
+        retained_prediction, ground_truth
+    )
 
     if case["mass_present"]:
         overlap_iou_00 = bool(retained_intersection > 0)
@@ -484,6 +507,13 @@ def evaluate_case(config, case):
         max_retained_component_iou = None
         normal_false_positive = triage
 
+    overlap_iou_00_fp = retained_components - int(bool(overlap_iou_00))
+    overlap_iou_02_fp = retained_components - int(bool(overlap_iou_02))
+    overlap_iou_05_fp = retained_components - int(bool(overlap_iou_05))
+    centroid_deq_025_fp = retained_components - int(bool(centroid_deq_025))
+    centroid_deq_050_fp = retained_components - int(bool(centroid_deq_050))
+    centroid_deq_100_fp = retained_components - int(bool(centroid_deq_100))
+
     return {
         "experiment_name": config["experiment_name"],
         "evaluation_split": config["evaluation_split"],
@@ -513,6 +543,14 @@ def evaluate_case(config, case):
         "liver_dice": liver_dice,
         "mass_iou": mass_iou,
         "max_retained_component_iou": max_retained_component_iou,
+        "retained_component_count": retained_components,
+        "unmatched_retained_component_count": unmatched_retained_components,
+        "overlap_detection_iou_00_fp_count": overlap_iou_00_fp,
+        "overlap_detection_iou_02_fp_count": overlap_iou_02_fp,
+        "overlap_detection_iou_05_fp_count": overlap_iou_05_fp,
+        "centroid_detection_deq_025_fp_count": centroid_deq_025_fp,
+        "centroid_detection_deq_050_fp_count": centroid_deq_050_fp,
+        "centroid_detection_deq_100_fp_count": centroid_deq_100_fp,
         "triage_detection_flag": triage,
         "overlap_detection_iou_00_flag": overlap_iou_00,
         "overlap_detection_iou_02_flag": overlap_iou_02,

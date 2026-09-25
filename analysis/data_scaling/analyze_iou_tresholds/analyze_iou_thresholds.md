@@ -2,7 +2,7 @@
 
 Training size: 625 images; experiment: data_scaling; evaluation split: test; checkpoint: final. The predicted-component noise floor is fixed at 0.03% of image area (pixel cutoff = int(fraction × image height × image width)). Values are mean ± sample standard deviation across 3 training seeds (42, 43, 44).
 
-Source: `analysis/predictions_dataset/predictions_dataset.csv` via the canonical loader. Dataset snapshot: `e9cee1981abb`.
+Source: `analysis/predictions_dataset/predictions_dataset.csv` via the canonical loader. Dataset snapshot: `de6aa8358f5e`.
 
 Detection requires max_retained_component_iou > threshold, matching the canonical dataset's strict comparison. At IoU 0.00 this requires any positive overlap. Unlike the previous analysis, equality at a positive threshold is not counted as detection.
 
